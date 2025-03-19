@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.5)
 
 project(multi-agent-navigation)
 
@@ -76,6 +76,3 @@ target_link_libraries(series_test ma_navigation_lib tinyxml2)
 
 set(CMAKE_C_COMPILER gcc)
 set(CMAKE_CXX_COMPILER g++)
-
-
-
