@@ -1,0 +1,44 @@
+{
+    "agents": [
+      {
+        "start_x": -9.0,
+        "start_y": -6.0,
+        "goal_x": 9.0,
+        "goal_y": 6.0,
+        "radius": 0.5,
+        "speed": 1.0,
+        "orientation": 0.0,
+        "policy": "CADRL",
+        "dynamics": "UnicycleDynamics",
+        "sensors": ["OtherAgentsStatesSensor"],
+        "agent_id": 0
+      },
+      {
+        "start_x": 9.0,
+        "start_y": 6.0,
+        "goal_x": -9.0,
+        "goal_y": -6.0,
+        "radius": 0.5,
+        "speed": 1.0,
+        "orientation": 3.141592653589793,
+        "policy": "CADRL",
+        "dynamics": "UnicycleDynamics",
+        "sensors": ["OtherAgentsStatesSensor"],
+        "agent_id": 1
+      },
+      {
+        "start_x": 4.0,
+        "start_y": 7.0,
+        "goal_x": 3.0,
+        "goal_y": 2.0,
+        "radius": 0.5,
+        "speed": 1.0,
+        "orientation": 3.141592653589793,
+        "policy": "CADRL",
+        "dynamics": "UnicycleDynamics",
+        "sensors": ["OtherAgentsStatesSensor"],
+        "agent_id": 2
+      }
+    ]
+  }
+  

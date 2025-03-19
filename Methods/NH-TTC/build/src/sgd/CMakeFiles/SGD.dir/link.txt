@@ -1,0 +1,2 @@
+/usr/bin/ar qc libSGD.a CMakeFiles/SGD.dir/sgd.cpp.o CMakeFiles/SGD.dir/ttc_obstacles.cpp.o CMakeFiles/SGD.dir/ttc_sgd_problem.cpp.o CMakeFiles/SGD.dir/ttc_sgd_problem_models.cpp.o
+/usr/bin/ranlib libSGD.a

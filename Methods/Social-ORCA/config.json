@@ -1,0 +1,34 @@
+{
+    "input_file": "your_input.xml",
+    "output_file": "your_output.xml",
+    "algorithm": {
+      "delta": 0.5,
+      "timestep": 0.1,
+      "searchtype": "thetastar",
+      "breakingties": 0,
+      "cutcorners": false,
+      "allowsqueeze": false,
+      "hweight": 1,
+      "trigger": "speed-buffer",
+      "mapfnum": 3
+    },
+    "experiment": {
+      "STEP_MAX": 1000,
+      "STOP_BY_SPEED": true,
+      "IS_TIME_BOUNDED": true,
+      "TIME_MAX": 60000
+    },
+    "input_files": {
+      "agents": "agents.xml",
+      "map": "map.xml",
+      "obstacles": "obstacles.xml"
+    },
+    "other_options": {
+      "COMMON_SPEED_BUFF_SIZE": 10,
+      "MISSION_SMALL_SPEED": 0.01,
+      "SPEED_BUFF_SIZE": 5,
+      "SMALL_SPEED": 0.005,
+      "ECBS_SUBOUT_FACTOR": 1.2
+    }
+  }
+  
