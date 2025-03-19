@@ -1,0 +1,12 @@
+{
+    "h": 0.2,
+    "Max_Step": 60
+    "Number": 6
+    "K": 12,
+    "r_min": 0.2,
+    "epsilon": 0.12,
+    "start_animation": true,
+    "save_animation": "results01.avi",
+    "save_trajectory": "trajectory.svg"
+  }
+  
