@@ -1,54 +1,55 @@
+import numpy as np
 
-def initialize_set(NUM, INI_X , INI_V ,TARGET,R_MIN,EPSILON ,H ,KK,EPISODES):
+def initialize_set(NUM, INI_X, INI_V, TARGET, R_MIN, EPSILON, H, KK, EPISODES):
 
 ###################
 #  personal set   #
 ###################
     global Num     # the number of agents
-    Num=NUM
+    Num = NUM
 
     global K       # recceding horizon
-    K=KK
+    K = KK
 
     global h       # time step
-    h=H   
+    h = H   
 
     global core_num # the number of core apllied for this computing
-    core_num=1 
+    core_num = 1 
 
 
     global episodes
-    if EPISODES==None:
-        episodes=150
+    if EPISODES == None:
+        episodes = 150
     else:
-        episodes=EPISODES
+        episodes = EPISODES
 
     global r_min 
-    r_min=R_MIN
+    r_min = R_MIN
 
     global epsilon 
-    epsilon=EPSILON
+    epsilon = EPSILON
     
 # initial set
     global ini_x   # intial position
-    ini_x=INI_X
+    ini_x = [np.array(x, dtype=np.float64) for x in INI_X]
 
     global ini_v   # initial velocity
-    ini_v=INI_V
+    ini_v = [np.array(v, dtype=np.float64) for v in INI_V]
 
 # target position: is a variable in some condition
     global target
-    target=TARGET
+    target = [np.array(t, dtype=np.float64) for t in TARGET]
     
     # 这个变量用来记录所有XFD剩余MPC视界
     global terminal_index_list 
-    terminal_index_list=[]
-    for i in range(Num):
-        terminal_index_list+=[K]
+    terminal_index_list = [K for _ in range(Num)]
     
     # 这个变量用来记录所有XFD的过往位置
     global position_list
-    position_list=ini_x
+    position_list = []
+    for i in range(Num):
+        position_list.append([])
 
     # 这个变量用来记录XFD的预设路径用于MPC避樟
     global pos_list

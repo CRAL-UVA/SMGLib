@@ -87,18 +87,16 @@ void XMLLogger::SetResults(const std::unordered_map<int, std::vector<Point>> &st
 
 
 std::string XMLLogger::GenerateLogFileName(std::string inpFileName, int agentsNum) {
-	std::string str;
-	str.append(inpFileName);
-	size_t found = str.find_last_of(".");
-	std::string piece = "_" + std::to_string(agentsNum) + "_log";
-	if (found != std::string::npos)
-		str.insert(found, piece);
-	else {
-		str.append(piece);
-		str.append(".xml");
+	auto found = inpFileName.find_last_of("/");
+	std::string fileName = inpFileName;
+	if (found != std::string::npos) {
+		fileName = inpFileName.substr(found + 1);
 	}
-
-	return str;
+	found = fileName.find_last_of(".");
+	if (found != std::string::npos) {
+		fileName = fileName.substr(0, found);
+	}
+	return "logs/" + fileName + "_" + std::to_string(agentsNum) + "_log.xml";
 }
 
 bool XMLLogger::CloneInputFile() {

@@ -8,8 +8,23 @@ from test import PLAN
 from plot import plot_trajectory
 
 def get_input(prompt, default, type_cast=str):
-    user_input = input(f"{prompt} (default: {default}): ")
-    return type_cast(user_input) if user_input else default
+    while True:
+        user_input = input(f"{prompt} (default: {default}): ")
+        if not user_input:
+            return default
+        try:
+            return type_cast(user_input)
+        except ValueError:
+            print(f"Invalid input! Please enter a valid {type_cast.__name__}.")
+
+def get_position_input(prompt):
+    while True:
+        try:
+            user_input = input(prompt)
+            x, y = map(float, user_input.split())
+            return np.array([x, y])
+        except ValueError:
+            print("Invalid input! Please enter two numbers separated by space (e.g., '1.0 2.0')")
 
 def save_video(frames, filename="video_recordings/simulation.avi", fps=5):
     if not frames:
@@ -74,28 +89,28 @@ def generate_animation(agent_list, r_min, filename="video_recordings/simulation.
 
 
 def main():
-    # Get user inputs
-    num_drones = get_input("Number of drones", 1, int)
-    max_steps = get_input("Max Steps", 100, int)
-    step_size = get_input("Step size h", 0.2, float)
-    k_value = get_input("K value", 12, int)
-    min_radius = get_input("Minimum radius r_min", 0.3, float)
-    epsilon = get_input("Epsilon value", 0.1, float)
-    random_init_positions = get_input("Generate random initial positions (yes/no)", "yes").lower() == "yes"
-    random_init_targets = get_input("Generate random initial targets (yes/no)", "yes").lower() == "yes"
+    # Get simulation parameters
+    num_drones = get_input("Enter number of drones", 2, int)
+    min_radius = get_input("Enter minimum distance between drones", 0.5, float)
+    epsilon = get_input("Enter epsilon value", 0.1, float)
+    step_size = get_input("Enter step size", 0.1, float)
+    k_value = get_input("Enter k value", 10, int)
+    max_steps = get_input("Enter maximum number of steps", 100, int)
+    random_init_targets = get_input("Use random initial and target positions? (y/n)", "n", str).lower() == "y"
     
-    # Generate initial positions and velocities
-    if random_init_positions:
+    # Generate initial positions
+    if random_init_targets:
         ini_x = [np.random.rand(2) * 2 for _ in range(num_drones)]
         ini_v = [np.zeros(2) for _ in range(num_drones)]
     else:
         ini_x = []
         ini_v = []
         for i in range(num_drones):
-            pos = list(map(float, input(f"Enter initial position for drone {i} (x y): ").split()))
-            vel = list(map(float, input(f"Enter initial velocity for drone {i} (vx vy): ").split()))
-            ini_x.append(np.array(pos))
-            ini_v.append(np.array(vel))
+            print(f"\nDrone {i}:")
+            pos = get_position_input(f"Enter initial position (x y): ")
+            vel = get_position_input(f"Enter initial velocity (vx vy): ")
+            ini_x.append(pos)
+            ini_v.append(vel)
     
     # Generate targets
     if random_init_targets:
@@ -103,29 +118,31 @@ def main():
     else:
         target = []
         for i in range(num_drones):
-            pos = list(map(float, input(f"Enter target position for drone {i} (x y): ").split()))
-            target.append(np.array(pos))
+            pos = get_position_input(f"Enter target position for drone {i} (x y): ")
+            target.append(pos)
     
-    # Run the simulation
-    print("Starting simulation...")
+    print("\nStarting simulation...")
     result, agent_list = PLAN(num_drones, ini_x, ini_v, target, min_radius, epsilon, step_size, k_value, max_steps)
+    
+    if result:
+        print("\nSimulation completed successfully!")
+        generate_animation(agent_list, min_radius)
+    else:
+        print("\nSimulation failed to find a solution.")
     
     # Generate and save trajectory animation
     plot_trajectory(agent_list, min_radius)
     print("Trajectory animation saved as 'trajectory.svg'")
     
-    # Generate and save movement animation
-    generate_animation(agent_list, min_radius)
-    
     # Output results
-    print("Simulation completed.")
-    print("Final positions:")
+    print("\nSimulation Results:")
+    print(f"Number of steps taken: {len(agent_list[0].position)}")
+    print(f"Final positions:")
     for i, agent in enumerate(agent_list):
-        print(f"Drone {i}: {agent.p}")
-    
-    print("Target positions:")
-    for i, tgt in enumerate(target):
-        print(f"Drone {i}: {tgt}")
-    
+        print(f"Drone {i}: {agent.position[-1]}")
+    print(f"Final velocities:")
+    for i, agent in enumerate(agent_list):
+        print(f"Drone {i}: {agent.v[-1]}")
+
 if __name__ == "__main__":
     main()

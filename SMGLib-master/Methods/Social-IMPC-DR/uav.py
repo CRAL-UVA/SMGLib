@@ -56,9 +56,10 @@ class uav():
 
         # the predetermined trajectory
         self.pre_traj=np.zeros((self.K+1,self.D))
-
+        
+        # Initialize pre_traj with initial position
         for i in range(self.K+1):
-            self.pre_traj[i]=ini_x
+            self.pre_traj[i] = ini_x.copy()
         
         self.pre_traj_list=[]
 
