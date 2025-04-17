@@ -55,12 +55,21 @@ def parse_orca_log(log_file):
         # Extract trajectory data from the log section
         path = agent_log.find('path')
         if path is not None:
-            for step in path.findall('step'):
+            steps = path.findall('step')
+            for i in range(len(steps)):
+                step = steps[i]
                 pos = [float(step.get('xr')), float(step.get('yr'))]
-                next_pos = [float(step.get('next.xr')), float(step.get('next.yr'))]
-                # Calculate velocity as difference between current and next position
-                vel = [next_pos[0] - pos[0], next_pos[1] - pos[1]]
                 positions.append(pos)
+                
+                # Calculate velocity from position difference
+                if i < len(steps) - 1:
+                    next_step = steps[i+1]
+                    next_pos = [float(next_step.get('xr')), float(next_step.get('yr'))]
+                    # Calculate velocity as (next_pos - pos) / time_step
+                    vel = [(next_pos[0] - pos[0]) / time_step, (next_pos[1] - pos[1]) / time_step]
+                else:
+                    # For the last step, use zero velocity
+                    vel = [0, 0]
                 velocities.append(vel)
         
         agents_data.append({
@@ -79,7 +88,29 @@ def generate_orca_csvs(log_file, output_dir):
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generate CSV for each agent
+    # Create velocity CSV file
+    velocity_csv = output_dir / "velocities.csv"
+    with open(velocity_csv, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        # Write header with robot IDs
+        header = ['step']
+        for agent in agents_data:
+            header.extend([f'robot_{agent["id"]}_vx', f'robot_{agent["id"]}_vy'])
+        writer.writerow(header)
+        
+        # Write velocity data for each timestep
+        max_steps = max(len(agent['velocities']) for agent in agents_data)
+        for t in range(max_steps):
+            row = [t]
+            for agent in agents_data:
+                if t < len(agent['velocities']):
+                    vel = agent['velocities'][t]
+                    row.extend([vel[0], vel[1]])
+                else:
+                    row.extend([0, 0])  # Pad with zeros if trajectory is shorter
+            writer.writerow(row)
+    
+    # Generate trajectory CSV for each agent
     for agent in agents_data:
         num_steps = len(agent['positions'])
         nominal_x, nominal_y = calculate_nominal_path(agent['start_pos'], agent['goal_pos'], num_steps)
@@ -99,7 +130,40 @@ def generate_orca_csvs(log_file, output_dir):
                     nominal_x[t],   # nominal_x
                     nominal_y[t]    # nominal_y
                 ])
-        print(f"Generated trajectory CSV for robot {agent['id']}: {output_csv}")
+    
+    return velocity_csv
+
+def evaluate_velocities(velocity_csv):
+    """Evaluate the velocities using the evaluate module."""
+    # Read the velocity CSV
+    data = pd.read_csv(velocity_csv)
+    
+    # Process each robot's velocities
+    robot_ids = []
+    for col in data.columns:
+        if col.endswith('_vx'):
+            robot_id = col.split('_')[1]
+            robot_ids.append(robot_id)
+    
+    # Calculate average delta velocity for each robot
+    for robot_id in robot_ids:
+        vx_col = f'robot_{robot_id}_vx'
+        vy_col = f'robot_{robot_id}_vy'
+        
+        # Calculate resultant velocity
+        data[f'robot_{robot_id}_resultant'] = np.sqrt(data[vx_col]**2 + data[vy_col]**2)
+        
+        # Calculate differences
+        diffs = np.diff(data[f'robot_{robot_id}_resultant'])
+        abs_diffs = np.abs(diffs)
+        sum_abs_diffs = np.sum(abs_diffs)
+        
+        # Print the average delta velocity
+        print("*" * 65)
+        print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")
+        print("*" * 65)
+    
+    return sum_abs_diffs  # Return the last calculated value
 
 def get_num_robots_from_config(config_file):
     """Extract number of robots from config file."""
@@ -151,7 +215,7 @@ def run_social_orca(config_file, num_robots):
     # Generate CSV files in a new 'trajectories' directory
     output_dir = latest_log.parent / "trajectories"
     try:
-        generate_orca_csvs(latest_log, output_dir)
+        velocity_csv = generate_orca_csvs(latest_log, output_dir)
         print(f"\nTrajectory CSV files generated in: {output_dir}")
         
         # Evaluate trajectories
@@ -181,6 +245,8 @@ def run_social_orca(config_file, num_robots):
             print(f"L2 Norm: {l2_norm:.4f}")
             print(f"Hausdorff distance: {hausdorff_dist:.4f}")
             print("*" * 65)
+        
+        evaluate_velocities(velocity_csv)
     except Exception as e:
         print(f"Error generating CSV files: {e}")
 
