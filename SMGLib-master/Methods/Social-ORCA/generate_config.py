@@ -109,6 +109,10 @@ def generate_config(env_type, num_robots, robot_positions):
     # Create XML tree and save to file
     tree = ET.ElementTree(root)
     config_filename = f'configs/config_{env_type}_{num_robots}_robots.xml'
+    
+    # Create configs directory if it doesn't exist
+    os.makedirs('configs', exist_ok=True)
+    
     tree.write(config_filename, encoding='utf-8', xml_declaration=True)
     print(f"Configuration saved to {config_filename}")
     return config_filename
@@ -134,27 +138,74 @@ def main():
     
     while True:
         try:
-            num_robots = int(input("Enter number of robots: "))
-            if num_robots > 0:
+            num_robots = int(input("Enter number of robots (1-4): "))
+            if 0 < num_robots <= 4:
                 break
-            print("Invalid number! Please enter a positive number.")
+            print("Invalid number! Please enter a number between 1 and 4.")
         except ValueError:
             print("Invalid input! Please enter a number.")
+    
+    # Print environment-specific instructions
+    if env_type == 'hallway':
+        print("\nHallway Configuration:")
+        print("- The hallway has walls at y=31-32 and y=35-36")
+        print("- Robots should stay at y=33.5 (middle of hallway)")
+        print("- X coordinates should be between 0 and 63")
+    elif env_type == 'doorway':
+        print("\nDoorway Configuration:")
+        print("- The doorway has walls at x=30-31 with a gap at y=30-34")
+        print("- Y coordinates should be between 0 and 63")
+        print("- X coordinates should be between 0 and 63")
+    elif env_type == 'intersection':
+        print("\nIntersection Configuration:")
+        print("- The intersection has walls at x=30-31 and y=30-31")
+        print("- X and Y coordinates should be between 0 and 63")
     
     robot_positions = []
     for i in range(num_robots):
         print(f"\nRobot {i+1} configuration:")
+        
+        # Get start position
         while True:
             try:
-                start_x = float(input("Starting X position: "))
-                start_y = float(input("Starting Y position: "))
-                goal_x = float(input("Goal X position: "))
-                goal_y = float(input("Goal Y position: "))
-                robot_positions.append({'start_x': start_x, 'start_y': start_y, 'goal_x': goal_x, 'goal_y': goal_y})
-                break
+                if env_type == 'hallway':
+                    start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                    start_y = 33.5  # Fixed Y position for hallway
+                else:
+                    start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                    start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
+                
+                if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                    break
+                print("Invalid position! Please enter values between 0 and 63.")
             except ValueError:
-                print("Invalid position values!")
+                print("Invalid input! Please enter a number.")
+        
+        # Get goal position
+        while True:
+            try:
+                if env_type == 'hallway':
+                    goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                    goal_y = 33.5  # Fixed Y position for hallway
+                else:
+                    goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                    goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
+                
+                if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                    break
+                print("Invalid position! Please enter values between 0 and 63.")
+            except ValueError:
+                print("Invalid input! Please enter a number.")
+        
+        robot_positions.append({
+            'start_x': start_x,
+            'start_y': start_y,
+            'goal_x': goal_x,
+            'goal_y': goal_y
+        })
+        print(f"Robot {i+1} will move from ({start_x}, {start_y}) to ({goal_x}, {goal_y})")
     
+    print("\nGenerating configuration file...")
     config_file = generate_config(env_type, num_robots, robot_positions)
     print(f"\nConfiguration file generated: {config_file}")
     print("You can now run the simulation using this configuration file.")

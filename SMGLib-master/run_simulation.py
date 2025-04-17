@@ -8,6 +8,9 @@ import numpy as np
 from pathlib import Path
 from scipy.spatial.distance import directed_hausdorff
 import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import matplotlib.patches as patches
 
 def get_venv_python():
     venv_dir = Path(__file__).parent / "venv"
@@ -172,35 +175,127 @@ def get_num_robots_from_config(config_file):
     agents = root.findall('.//agent')
     return len(agents)
 
+def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None):
+    """Generate an animation of robot movements."""
+    # Create animations directory in the logs folder
+    animations_dir = output_dir.parent / "animations"
+    animations_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Set up the figure and axis
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.set_xlim(0, map_size[0])
+    ax.set_ylim(0, map_size[1])
+    ax.set_aspect('equal')
+    
+    # Add grid
+    ax.grid(True, linestyle='--', alpha=0.3)
+    
+    # Create scatter plots for robots
+    scatter = ax.scatter([], [], c='blue', s=100)
+    
+    # Create goal markers
+    for agent in agents_data:
+        goal_pos = agent['goal_pos']
+        ax.plot(goal_pos[0], goal_pos[1], 'g*', markersize=10, label='Goal' if agent['id'] == 0 else "")
+    
+    # Add obstacles from config file if provided
+    if config_file and os.path.exists(config_file):
+        tree = ET.parse(config_file)
+        root = tree.getroot()
+        obstacles = root.findall('.//obstacle')
+        
+        for obstacle in obstacles:
+            vertices = []
+            for vertex in obstacle.findall('vertex'):
+                x = float(vertex.get('xr'))
+                y = float(vertex.get('yr'))
+                vertices.append([x, y])
+            
+            # Create polygon patch for obstacle
+            vertices = np.array(vertices)
+            polygon = patches.Polygon(vertices, closed=True, facecolor='gray', alpha=0.5)
+            ax.add_patch(polygon)
+    
+    # Create velocity vectors
+    velocity_arrows = []
+    for _ in agents_data:
+        arrow = ax.arrow(0, 0, 0, 0, head_width=0.5, head_length=0.8, fc='red', ec='red', alpha=0.5)
+        velocity_arrows.append(arrow)
+    
+    def update(frame):
+        # Update robot positions
+        positions = []
+        for agent in agents_data:
+            if frame < len(agent['positions']):
+                pos = agent['positions'][frame]
+                positions.append(pos)
+                
+                # Update velocity arrow
+                if frame < len(agent['velocities']):
+                    vel = agent['velocities'][frame]
+                    arrow = velocity_arrows[agent['id']]
+                    arrow.set_data(x=pos[0], y=pos[1], dx=vel[0], dy=vel[1])
+            else:
+                # If we're past the end of this agent's trajectory, use the last position
+                positions.append(agent['positions'][-1])
+        
+        scatter.set_offsets(positions)
+        return [scatter] + velocity_arrows
+    
+    # Create animation with reduced frames
+    num_frames = max(len(agent['positions']) for agent in agents_data)
+    # Sample every 5th frame to reduce total frames
+    frames = range(0, num_frames, 5)
+    anim = FuncAnimation(fig, update, frames=frames, interval=200, blit=True)  # 200ms interval for 5 FPS
+    
+    # Add legend
+    ax.legend()
+    
+    # Save animation
+    try:
+        anim.save(animations_dir / "robot_movement.gif", writer='pillow', fps=5)  # Set FPS to 5
+        print(f"Animation saved to {animations_dir / 'robot_movement.gif'}")
+    except Exception as e:
+        print(f"Failed to save GIF: {e}")
+        print("Saving as HTML instead...")
+        try:
+            anim.save(animations_dir / "robot_movement.html", writer='html')
+            print(f"Animation saved to {animations_dir / 'robot_movement.html'}")
+        except Exception as e:
+            print(f"Failed to save HTML: {e}")
+            print("Saving individual frames as PNG...")
+            for frame in range(num_frames):
+                update(frame)
+                plt.savefig(animations_dir / f"frame_{frame:04d}.png")
+            print(f"Frames saved to {animations_dir}")
+    
+    plt.close()
+    return animations_dir / "robot_movement.gif"
+
 def run_social_orca(config_file, num_robots):
     print("\nRunning Social-ORCA Simulation")
     print("=============================")
     
+    # Store the base directory
+    base_dir = Path(__file__).parent
+    
     # Change to Social-ORCA directory
-    orca_dir = Path("Methods/Social-ORCA")
+    orca_dir = base_dir / "Methods/Social-ORCA"
     os.chdir(orca_dir)
     
-    # Run the configuration generator
-    subprocess.run([get_venv_python(), "generate_config.py"])
-    
-    # Get the most recently created config file
-    config_files = sorted(Path("configs").glob("config_*.xml"), key=os.path.getctime)
-    if not config_files:
-        print("No configuration files found!")
-        return
-    
-    latest_config = config_files[-1]
-    print(f"\nUsing configuration file: {latest_config}")
+    # Use the provided config file
+    config_path = config_file
+    print(f"\nUsing configuration file: {config_path}")
     
     try:
-        num_robots = get_num_robots_from_config(latest_config)
+        num_robots = get_num_robots_from_config(config_path)
     except Exception as e:
         print(f"Error reading config file: {e}")
         return
     
     # Run the simulation
     print(f"\nRunning simulation with {num_robots} robots...")
-    cmd = f"cd {orca_dir} && ./build/SocialORCA {latest_config} {num_robots}"
+    cmd = f"./build/single_test {config_path} {num_robots}"
     subprocess.run(cmd, shell=True)
     
     # Get the most recent log file
@@ -217,6 +312,11 @@ def run_social_orca(config_file, num_robots):
     try:
         velocity_csv = generate_orca_csvs(latest_log, output_dir)
         print(f"\nTrajectory CSV files generated in: {output_dir}")
+        
+        # Generate animation
+        num_robots, time_step, agents_data = parse_orca_log(latest_log)
+        animation_path = generate_animation(agents_data, output_dir, config_file=config_path)
+        print(f"\nAnimation generated at: {animation_path}")
         
         # Evaluate trajectories
         print("\nEvaluating trajectories...")
@@ -248,7 +348,8 @@ def run_social_orca(config_file, num_robots):
         
         evaluate_velocities(velocity_csv)
     except Exception as e:
-        print(f"Error generating CSV files: {e}")
+        print(f"Error processing trajectories: {e}")
+        return
 
 def run_social_impc_dr():
     print("\nRunning Social-IMPC-DR Simulation")
@@ -293,6 +394,107 @@ def run_social_impc_dr():
     else:
         print(f"\nWarning: No path_deviation.csv file found in {impc_dir}")
 
+def generate_config(env_type, num_robots, robot_positions):
+    """Generate a configuration file for the simulation."""
+    root = ET.Element('root')
+    
+    # Add agents section
+    agents = ET.SubElement(root, 'agents', {'number': str(num_robots), 'type': 'orca'})
+    default_params = ET.SubElement(agents, 'default_parameters', {
+        'size': '0.3',
+        'movespeed': '1',
+        'agentsmaxnum': str(num_robots),
+        'timeboundary': '5.4',
+        'sightradius': '3.0',
+        'timeboundaryobst': '33'
+    })
+    
+    # Add individual agents
+    for i in range(num_robots):
+        agent = ET.SubElement(agents, 'agent', {
+            'id': str(i),
+            'start.xr': str(robot_positions[i]['start_x']),
+            'start.yr': str(robot_positions[i]['start_y']),
+            'goal.xr': str(robot_positions[i]['goal_x']),
+            'goal.yr': str(robot_positions[i]['goal_y'])
+        })
+    
+    # Add map section
+    map_elem = ET.SubElement(root, 'map')
+    ET.SubElement(map_elem, 'width').text = '64'
+    ET.SubElement(map_elem, 'height').text = '64'
+    ET.SubElement(map_elem, 'cellsize').text = '1'
+    
+    # Add grid
+    grid = ET.SubElement(map_elem, 'grid')
+    for _ in range(64):  # 64x64 grid
+        row = ET.SubElement(grid, 'row')
+        row.text = '0 ' * 63 + '0'  # 64 zeros per row
+    
+    # Add obstacles based on environment type
+    obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
+    if env_type == 'hallway':
+        # Add hallway walls
+        obstacle1 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '31'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '32'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '63', 'yr': '31'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '63', 'yr': '32'})
+        
+        obstacle2 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '35'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '36'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '35'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '36'})
+    
+    elif env_type == 'doorway':
+        # Add doorway walls
+        obstacle1 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
+        
+        obstacle2 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '34'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '34'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '64'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
+    
+    elif env_type == 'intersection':
+        # Add intersection walls
+        obstacle1 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
+        
+        obstacle2 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '30'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '31'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '30'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '31'})
+    
+    # Add algorithm section
+    algorithm = ET.SubElement(root, 'algorithm')
+    ET.SubElement(algorithm, 'searchtype').text = 'direct'
+    ET.SubElement(algorithm, 'breakingties').text = '0'
+    ET.SubElement(algorithm, 'allowsqueeze').text = 'false'
+    ET.SubElement(algorithm, 'cutcorners').text = 'false'
+    ET.SubElement(algorithm, 'hweight').text = '1'
+    ET.SubElement(algorithm, 'timestep').text = '0.1'
+    ET.SubElement(algorithm, 'delta').text = '0.1'
+    
+    # Create XML tree and save to file
+    tree = ET.ElementTree(root)
+    configs_dir = Path(__file__).parent / "Methods/Social-ORCA/configs"
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    config_filename = configs_dir / f'config_{env_type}_{num_robots}_robots.xml'
+    
+    tree.write(config_filename, encoding='utf-8', xml_declaration=True)
+    print(f"\nConfiguration saved to {config_filename}")
+    return config_filename
+
 def main():
     print("Welcome to the Multi-Agent Navigation Simulator")
     print("=============================================")
@@ -314,8 +516,98 @@ def main():
     
     try:
         if choice == 1:
-            config_file = next(Path("Methods/Social-ORCA/configs").glob("config_*.xml"))
-            num_robots = get_num_robots_from_config(config_file)
+            # Ask for environment type
+            print("\nAvailable environments:")
+            print("1. doorway")
+            print("2. hallway")
+            print("3. intersection")
+            
+            while True:
+                try:
+                    env_choice = int(input("\nEnter environment type (1-3): "))
+                    if env_choice in [1, 2, 3]:
+                        break
+                    print("Invalid choice! Please enter 1, 2, or 3.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+            env_type = env_types[env_choice]
+            
+            # Ask for number of robots
+            while True:
+                try:
+                    num_robots = int(input("\nEnter number of robots (1-4): "))
+                    if 0 < num_robots <= 4:
+                        break
+                    print("Invalid number! Please enter a number between 1 and 4.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            # Print environment-specific instructions
+            if env_type == 'hallway':
+                print("\nHallway Configuration:")
+                print("- The hallway has walls at y=31-32 and y=35-36")
+                print("- Robots should stay at y=33.5 (middle of hallway)")
+                print("- X coordinates should be between 0 and 63")
+            elif env_type == 'doorway':
+                print("\nDoorway Configuration:")
+                print("- The doorway has walls at x=30-31 with a gap at y=30-34")
+                print("- Y coordinates should be between 0 and 63")
+                print("- X coordinates should be between 0 and 63")
+            elif env_type == 'intersection':
+                print("\nIntersection Configuration:")
+                print("- The intersection has walls at x=30-31 and y=30-31")
+                print("- X and Y coordinates should be between 0 and 63")
+            
+            # Get robot positions
+            robot_positions = []
+            for i in range(num_robots):
+                print(f"\nRobot {i+1} configuration:")
+                
+                # Get start position
+                while True:
+                    try:
+                        if env_type == 'hallway':
+                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                            start_y = 33.5  # Fixed Y position for hallway
+                        else:
+                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                            start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
+                        
+                        if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                            break
+                        print("Invalid position! Please enter values between 0 and 63.")
+                    except ValueError:
+                        print("Invalid input! Please enter a number.")
+                
+                # Get goal position
+                while True:
+                    try:
+                        if env_type == 'hallway':
+                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                            goal_y = 33.5  # Fixed Y position for hallway
+                        else:
+                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                            goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
+                        
+                        if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                            break
+                        print("Invalid position! Please enter values between 0 and 63.")
+                    except ValueError:
+                        print("Invalid input! Please enter a number.")
+                
+                robot_positions.append({
+                    'start_x': start_x,
+                    'start_y': start_y,
+                    'goal_x': goal_x,
+                    'goal_y': goal_y
+                })
+            
+            # Generate configuration file
+            config_file = generate_config(env_type, num_robots, robot_positions)
+            
+            # Run the simulation
             run_social_orca(config_file, num_robots)
         else:
             run_social_impc_dr()
