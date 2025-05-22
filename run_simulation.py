@@ -351,7 +351,7 @@ def run_social_orca(config_file, num_robots):
         print(f"Error processing trajectories: {e}")
         return
 
-def run_social_impc_dr():
+def run_social_impc_dr(env_type='doorway'):
     print("\nRunning Social-IMPC-DR Simulation")
     print("=================================")
     
@@ -364,8 +364,8 @@ def run_social_impc_dr():
     print(f"Changing to directory: {impc_dir}")
     os.chdir(impc_dir)
     
-    # Run app2.py directly to allow for user input
-    subprocess.run([get_venv_python(), "app2.py"])
+    # Run app2.py with environment parameter
+    subprocess.run([get_venv_python(), "app2.py", env_type])
     
     # Evaluate trajectory if available
     path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
@@ -433,8 +433,8 @@ def generate_config(env_type, num_robots, robot_positions):
         row.text = '0 ' * 63 + '0'  # 64 zeros per row
     
     # Add obstacles based on environment type
-    obstacles = ET.SubElement(root, 'obstacles', {'number': '4'})
     if env_type == 'hallway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add hallway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '31'})
@@ -449,6 +449,7 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '36'})
     
     elif env_type == 'doorway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add doorway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
@@ -463,6 +464,7 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
     
     elif env_type == 'intersection':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '4'})
         # Add intersection walls
         # Top-left building
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
@@ -712,7 +714,25 @@ def main():
             # Run the simulation
             run_social_orca(config_file, num_robots)
         else:
-            run_social_impc_dr()
+            # Ask for environment type for IMPC-DR
+            print("\nAvailable environments:")
+            print("1. doorway")
+            print("2. hallway")
+            print("3. intersection")
+            
+            while True:
+                try:
+                    env_choice = int(input("\nEnter environment type (1-3): "))
+                    if env_choice in [1, 2, 3]:
+                        break
+                    print("Invalid choice! Please enter 1, 2, or 3.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+            env_type = env_types[env_choice]
+            
+            run_social_impc_dr(env_type)
     finally:
         # Always return to the original directory
         os.chdir(original_dir)
