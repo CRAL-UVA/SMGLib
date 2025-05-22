@@ -351,7 +351,7 @@ def run_social_orca(config_file, num_robots):
         print(f"Error processing trajectories: {e}")
         return
 
-def run_social_impc_dr():
+def run_social_impc_dr(env_type='doorway'):
     print("\nRunning Social-IMPC-DR Simulation")
     print("=================================")
     
@@ -364,35 +364,36 @@ def run_social_impc_dr():
     print(f"Changing to directory: {impc_dir}")
     os.chdir(impc_dir)
     
-    # Run app2.py directly to allow for user input
-    subprocess.run([get_venv_python(), "app2.py"])
+    # Run app2.py with environment parameter
+    subprocess.run([get_venv_python(), "app2.py", env_type])
     
     # Evaluate trajectory if available
-    path_deviation_file = impc_dir / "path_deviation.csv"
-    if path_deviation_file.exists():
-        print("\nEvaluating Social-IMPC-DR trajectory:")
-        data = pd.read_csv(path_deviation_file)
-        
-        # Extract coordinates
-        actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
-        nominal_x, nominal_y = data.iloc[:, 2], data.iloc[:, 3]
-        
-        # Compute trajectory difference and L2 norm
-        diff_x, diff_y = actual_x - nominal_x, actual_y - nominal_y
-        l2_norm = np.sqrt(diff_x**2 + diff_y**2).sum()
-        
-        # Calculate Hausdorff distance
-        actual_trajectory = np.column_stack((actual_x, actual_y))
-        nominal_trajectory = np.column_stack((nominal_x, nominal_y))
-        hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
-        
-        print("*" * 65)
-        print("Social-IMPC-DR Path Deviation Metrics:")
-        print(f"L2 Norm: {l2_norm:.4f}")
-        print(f"Hausdorff distance: {hausdorff_dist:.4f}")
-        print("*" * 65)
+    path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
+    if path_deviation_files:
+        print("\nEvaluating Social-IMPC-DR trajectories:")
+        for path_deviation_file in path_deviation_files:
+            data = pd.read_csv(path_deviation_file)
+            
+            # Extract coordinates
+            actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
+            nominal_x, nominal_y = data.iloc[:, 2], data.iloc[:, 3]
+            
+            # Compute trajectory difference and L2 norm
+            diff_x, diff_y = actual_x - nominal_x, actual_y - nominal_y
+            l2_norm = np.sqrt(diff_x**2 + diff_y**2).sum()
+            
+            # Calculate Hausdorff distance
+            actual_trajectory = np.column_stack((actual_x, actual_y))
+            nominal_trajectory = np.column_stack((nominal_x, nominal_y))
+            hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
+            
+            print("*" * 65)
+            print(f"Robot {path_deviation_file.stem.split('_')[-1]} Path Deviation Metrics:")
+            print(f"L2 Norm: {l2_norm:.4f}")
+            print(f"Hausdorff distance: {hausdorff_dist:.4f}")
+            print("*" * 65)
     else:
-        print(f"\nWarning: No path_deviation.csv file found in {impc_dir}")
+        print(f"\nWarning: No path deviation CSV files found in {impc_dir}")
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
@@ -432,8 +433,8 @@ def generate_config(env_type, num_robots, robot_positions):
         row.text = '0 ' * 63 + '0'  # 64 zeros per row
     
     # Add obstacles based on environment type
-    obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
     if env_type == 'hallway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add hallway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '31'})
@@ -448,6 +449,7 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '36'})
     
     elif env_type == 'doorway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add doorway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
@@ -462,18 +464,35 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
     
     elif env_type == 'intersection':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '4'})
         # Add intersection walls
+        # Top-left building
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '25'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '25'})
         
+        # Top-right building
         obstacle2 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '30'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '31'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '30'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '31'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '39', 'yr': '0'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '64', 'yr': '0'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '64', 'yr': '25'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '39', 'yr': '25'})
+        
+        # Bottom-left building
+        obstacle3 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle3, 'vertex', {'xr': '0', 'yr': '39'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '25', 'yr': '39'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '25', 'yr': '64'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '0', 'yr': '64'})
+        
+        # Bottom-right building
+        obstacle4 = ET.SubElement(obstacles, 'obstacle')
+        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '39'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '39'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '64'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '64'})
     
     # Add algorithm section
     algorithm = ET.SubElement(root, 'algorithm')
@@ -535,82 +554,185 @@ def main():
             env_type = env_types[env_choice]
             
             # Ask for number of robots
-            while True:
-                try:
-                    num_robots = int(input("\nEnter number of robots (1-4): "))
-                    if 0 < num_robots <= 4:
-                        break
-                    print("Invalid number! Please enter a number between 1 and 4.")
-                except ValueError:
-                    print("Invalid input! Please enter a number.")
-            
-            # Print environment-specific instructions
-            if env_type == 'hallway':
-                print("\nHallway Configuration:")
-                print("- The hallway has walls at y=31-32 and y=35-36")
-                print("- Robots should stay at y=33.5 (middle of hallway)")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'doorway':
-                print("\nDoorway Configuration:")
-                print("- The doorway has walls at x=30-31 with a gap at y=30-34")
-                print("- Y coordinates should be between 0 and 63")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'intersection':
+            if env_type == 'intersection':
                 print("\nIntersection Configuration:")
-                print("- The intersection has walls at x=30-31 and y=30-31")
-                print("- X and Y coordinates should be between 0 and 63")
-            
-            # Get robot positions
-            robot_positions = []
-            for i in range(num_robots):
-                print(f"\nRobot {i+1} configuration:")
+                print("- The intersection has four square buildings in the corners with a + shaped path between them.")
+                print("- The intersection opening is at (30-34, 30-34)")
                 
-                # Get start position
                 while True:
                     try:
-                        if env_type == 'hallway':
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                        num_robots = int(input("\nEnter number of robots (1-4): "))
+                        if 0 < num_robots <= 4:
                             break
-                        print("Invalid position! Please enter values between 0 and 63.")
+                        print("Invalid number! Please enter a number between 1 and 4.")
                     except ValueError:
                         print("Invalid input! Please enter a number.")
                 
-                # Get goal position
+                print("\nWould you like to:")
+                print("1. Use default positions (2 robots crossing scenario)")
+                print("2. Enter custom positions")
+                
                 while True:
                     try:
-                        if env_type == 'hallway':
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                        pos_choice = int(input("\nEnter choice (1-2): "))
+                        if pos_choice in [1, 2]:
                             break
-                        print("Invalid position! Please enter values between 0 and 63.")
+                        print("Invalid choice! Please enter 1 or 2.")
                     except ValueError:
                         print("Invalid input! Please enter a number.")
                 
-                robot_positions.append({
-                    'start_x': start_x,
-                    'start_y': start_y,
-                    'goal_x': goal_x,
-                    'goal_y': goal_y
-                })
+                if pos_choice == 1:
+                    if num_robots != 2:
+                        print("\nNote: Default positions are designed for 2 robots.")
+                        print("Proceeding with custom positions instead.")
+                        pos_choice = 2
+                    else:
+                        print("\nUsing default intersection scenario:")
+                        print("- Robot 1 (orange): Moving right to left")
+                        print("- Robot 2 (green): Moving bottom to top")
+                        robot_positions = [
+                            {
+                                'start_x': 45.0,  # Right side
+                                'start_y': 32.0,  # Middle of horizontal corridor
+                                'goal_x': 15.0,   # Left side
+                                'goal_y': 32.0    # Middle of horizontal corridor
+                            },
+                            {
+                                'start_x': 32.0,  # Middle of vertical corridor
+                                'start_y': 15.0,  # Bottom
+                                'goal_x': 32.0,   # Middle of vertical corridor
+                                'goal_y': 45.0    # Top
+                            }
+                        ]
+                
+                if pos_choice == 2:
+                    print("\nEnter custom positions:")
+                    print("Tips for intersection navigation:")
+                    print("- Use the corridors (x=30-34 or y=30-34) to cross the intersection")
+                    print("- Avoid placing robots in the walls")
+                    robot_positions = []
+                    for i in range(num_robots):
+                        print(f"\nRobot {i+1} configuration:")
+                        while True:
+                            try:
+                                start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                                start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
+                                if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                                    break
+                                print("Invalid position! Please enter values between 0 and 63.")
+                            except ValueError:
+                                print("Invalid input! Please enter a number.")
+                        
+                        while True:
+                            try:
+                                goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                                goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
+                                if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                                    break
+                                print("Invalid position! Please enter values between 0 and 63.")
+                            except ValueError:
+                                print("Invalid input! Please enter a number.")
+                        
+                        robot_positions.append({
+                            'start_x': start_x,
+                            'start_y': start_y,
+                            'goal_x': goal_x,
+                            'goal_y': goal_y
+                        })
+                        print(f"Robot {i+1} will move from ({start_x}, {start_y}) to ({goal_x}, {goal_y})")
+            else:
+                while True:
+                    try:
+                        num_robots = int(input("\nEnter number of robots (1-4): "))
+                        if 0 < num_robots <= 4:
+                            break
+                        print("Invalid number! Please enter a number between 1 and 4.")
+                    except ValueError:
+                        print("Invalid input! Please enter a number.")
+                
+                # Print environment-specific instructions
+                if env_type == 'hallway':
+                    print("\nHallway Configuration:")
+                    print("- The hallway has walls at y=31-32 and y=35-36")
+                    print("- Robots should stay at y=33.5 (middle of hallway)")
+                    print("- X coordinates should be between 0 and 63")
+                elif env_type == 'doorway':
+                    print("\nDoorway Configuration:")
+                    print("- The doorway has walls at x=30-31 with a gap at y=30-34")
+                    print("- Y coordinates should be between 0 and 63")
+                    print("- X coordinates should be between 0 and 63")
+                
+                # Get robot positions
+                robot_positions = []
+                for i in range(num_robots):
+                    print(f"\nRobot {i+1} configuration:")
+                    
+                    # Get start position
+                    while True:
+                        try:
+                            if env_type == 'hallway':
+                                start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                                start_y = 33.5  # Fixed Y position for hallway
+                            else:
+                                start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
+                                start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
+                            
+                            if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                                break
+                            print("Invalid position! Please enter values between 0 and 63.")
+                        except ValueError:
+                            print("Invalid input! Please enter a number.")
+                    
+                    # Get goal position
+                    while True:
+                        try:
+                            if env_type == 'hallway':
+                                goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                                goal_y = 33.5  # Fixed Y position for hallway
+                            else:
+                                goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
+                                goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
+                            
+                            if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                                break
+                            print("Invalid position! Please enter values between 0 and 63.")
+                        except ValueError:
+                            print("Invalid input! Please enter a number.")
+                    
+                    robot_positions.append({
+                        'start_x': start_x,
+                        'start_y': start_y,
+                        'goal_x': goal_x,
+                        'goal_y': goal_y
+                    })
+                    print(f"Robot {i+1} will move from ({start_x}, {start_y}) to ({goal_x}, {goal_y})")
             
-            # Generate configuration file
+            print("\nGenerating configuration file...")
             config_file = generate_config(env_type, num_robots, robot_positions)
+            print(f"\nConfiguration file generated: {config_file}")
             
             # Run the simulation
             run_social_orca(config_file, num_robots)
         else:
-            run_social_impc_dr()
+            # Ask for environment type for IMPC-DR
+            print("\nAvailable environments:")
+            print("1. doorway")
+            print("2. hallway")
+            print("3. intersection")
+            
+            while True:
+                try:
+                    env_choice = int(input("\nEnter environment type (1-3): "))
+                    if env_choice in [1, 2, 3]:
+                        break
+                    print("Invalid choice! Please enter 1, 2, or 3.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+            env_type = env_types[env_choice]
+            
+            run_social_impc_dr(env_type)
     finally:
         # Always return to the original directory
         os.chdir(original_dir)
