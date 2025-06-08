@@ -13,10 +13,25 @@ from matplotlib.animation import FuncAnimation
 import matplotlib.patches as patches
 
 def get_venv_python():
+    # First try to use the system Python
+    python_path = sys.executable
+    
+    # Check if we're in a conda environment
+    if 'CONDA_PREFIX' in os.environ:
+        return python_path
+    
+    # If not in conda, try to use venv
     venv_dir = Path(__file__).parent / "venv"
-    if sys.platform == "win32":
-        return str(venv_dir / "Scripts" / "python.exe")
-    return str(venv_dir / "bin" / "python")
+    if venv_dir.exists():
+        if sys.platform == "win32":
+            venv_python = venv_dir / "Scripts" / "python.exe"
+        else:
+            venv_python = venv_dir / "bin" / "python"
+        if venv_python.exists():
+            return str(venv_python)
+    
+    # If no virtual environment found, use system Python
+    return python_path
 
 def calculate_nominal_path(start_pos, goal_pos, num_steps):
     """Calculate the nominal path (straight line) from start to goal."""
