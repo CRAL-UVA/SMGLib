@@ -1,0 +1,43 @@
+{
+  "flow_metrics": {
+    "flow_rate": 0.0,
+    "total_agents": 24,
+    "completed_agents": 24,
+    "completion_rate": 1.0,
+    "total_time": 0.0,
+    "avg_completion_time": 0.0,
+    "completion_times": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  },
+  "scenario_type": "intersection",
+  "summary": {
+    "total_agents": 24,
+    "completed_agents": 24,
+    "completion_rate": 1.0,
+    "flow_rate": 0.0
+  }
+}

@@ -1,2 +1,0 @@
-add_subdirectory(sgd)
-add_subdirectory(nhttc_opengl)

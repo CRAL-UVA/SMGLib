@@ -58,12 +58,13 @@ import threading
 
 def run_one_step(agent_list,obstacle_list):
     
+    num_agents_to_process = len(agent_list)
     items=[]
-    for i in range(SET.Num):
+    for i in range(num_agents_to_process):
         items.append( [agent_list[i],obstacle_list] )
 
     # running it in parallel
-    agent_list=[run_one_agent(items[i]) for i in range(SET.Num)]
+    agent_list=[run_one_agent(items[i]) for i in range(num_agents_to_process)]
     return agent_list
 
 def run_one_agent(items):
@@ -163,6 +164,15 @@ def run_cvxp(agent):
     prob = cp.Problem(objective, constraints)
 
     prob.solve(solver='SCS')
+    
+    # Check if optimization was successful
+    if U.value is None or np.isscalar(U.value):
+        print(f"Warning: Optimization failed for agent {agent.index}, using zero control")
+        U_value = np.zeros(D*K)
+        E_value = np.ones(cons_C.shape[1]) * epsilon
+    else:
+        U_value = U.value
+        E_value = E.value if E.value is not None else np.ones(cons_C.shape[1]) * epsilon
      
-    return [VA @ state + VB @ U.value + VC, U.value.reshape((K,D)), E.value[1:cons_C.shape[1]]]   
+    return [VA @ state + VB @ U_value + VC, U_value.reshape((K,D)), E_value[1:cons_C.shape[1]]]   
 

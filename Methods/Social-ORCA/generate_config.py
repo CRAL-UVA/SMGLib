@@ -53,11 +53,7 @@ def generate_config(env_type, num_robots, robot_positions):
         row.text = '0 ' * 63 + '0'  # 64 zeros per row
     
     # Add obstacles based on environment type
-    if env_type == 'intersection':
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '4'})
-    else:
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
-    
+    obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
     if env_type == 'hallway':
         # Add hallway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
@@ -87,54 +83,18 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
     
     elif env_type == 'intersection':
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '4'})
-        
-        # Top-left building
+        # Add intersection walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '25'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '25'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
         
-        # Top-right building
         obstacle2 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle2, 'vertex', {'xr': '', 'yr': '0'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '64', 'yr': '0'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '64', 'yr': '30'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '34', 'yr': '30'})
-        
-        # Bottom-left building
-        obstacle3 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle3, 'vertex', {'xr': '0', 'yr': '34'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '30', 'yr': '34'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '30', 'yr': '64'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '0', 'yr': '64'})
-        
-        # Bottom-right building
-        obstacle4 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle4, 'vertex', {'xr': '34', 'yr': '34'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '34'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '64'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '34', 'yr': '64'})
-
-        # Update the default parameters for intersection navigation
-        default_params.set('timeboundary', '10.0')
-        default_params.set('sightradius', '5.0')
-
-        # Set default robot positions for intersection scenario
-        if num_robots == 2:
-            robot_positions[0] = {
-                'start_x': 32.0,  # Middle of vertical path
-                'start_y': 5.0,   # Bottom
-                'goal_x': 32.0,   # Middle of vertical path
-                'goal_y': 59.0    # Top
-            }
-            robot_positions[1] = {
-                'start_x': 5.0,   # Left
-                'start_y': 32.0,  # Middle of horizontal path
-                'goal_x': 59.0,   # Right
-                'goal_y': 32.0    # Middle of horizontal path
-            }
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '30'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '31'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '30'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '31'})
     
     # Add algorithm section
     algorithm = ET.SubElement(root, 'algorithm')
@@ -198,18 +158,8 @@ def main():
         print("- X coordinates should be between 0 and 63")
     elif env_type == 'intersection':
         print("\nIntersection Configuration:")
-        print("- The intersection has four square buildings in the corners with a + shaped path between them")
-        print("- Vertical walls at x=30-31 with gap at y=30-34")
-        print("- Horizontal walls at y=30-31 with gap at x=30-34")
-        print("- The intersection opening is at (30-34, 30-34)")
-        print("\nExample scenario (as shown in image):")
-        print("For Robot 1 (orange robot moving left):")
-        print("  * Start position: (45, 32)")
-        print("  * Goal position: (15, 32)")
-        print("For Robot 2 (green robot moving up):")
-        print("  * Start position: (32, 15)")
-        print("  * Goal position: (32, 45)")
-        print("\nNote: Robots will automatically avoid collision at the intersection")
+        print("- The intersection has walls at x=30-31 and y=30-31")
+        print("- X and Y coordinates should be between 0 and 63")
     
     robot_positions = []
     for i in range(num_robots):

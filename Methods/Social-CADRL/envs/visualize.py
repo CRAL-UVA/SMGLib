@@ -76,16 +76,42 @@ def animate_episode(num_agents, plot_save_dir=None, plot_policy_name=None, test_
     animation_save_dir = plot_save_dir+"animations/"
     makedirs(animation_save_dir, exist_ok=True)
     animation_filename = animation_save_dir+animation_filename
-    imageio.mimsave(animation_filename, images)
-
-    # convert .gif to .mp4
+    
+    # Try imageio first, fall back to pillow if ffmpeg is not available
     try:
-        import moviepy.editor as mp
-    except imageio.core.fetching.NeedDownloadError:
-        imageio.plugins.ffmpeg.download()
-        import moviepy.editor as mp
-    clip = mp.VideoFileClip(animation_filename)
-    clip.write_videofile(animation_filename[:-4]+".mp4")
+        imageio.mimsave(animation_filename, images)
+        print(f"Animation saved using imageio: {animation_filename}")
+    except Exception as e:
+        print(f"imageio failed ({e}), trying alternative method...")
+        try:
+            # Use PIL to create GIF as fallback
+            from PIL import Image
+            pil_images = []
+            for img_array in images:
+                # Convert numpy array to PIL Image
+                if img_array.dtype != 'uint8':
+                    img_array = (img_array * 255).astype('uint8')
+                pil_img = Image.fromarray(img_array)
+                pil_images.append(pil_img)
+            
+            # Save as GIF using PIL
+            if pil_images:
+                pil_images[0].save(
+                    animation_filename,
+                    save_all=True,
+                    append_images=pil_images[1:],
+                    duration=200,  # 200ms per frame
+                    loop=0
+                )
+                print(f"Animation saved using PIL: {animation_filename}")
+            else:
+                print("No images to save for animation")
+        except Exception as pil_error:
+            print(f"PIL fallback also failed: {pil_error}")
+            print("Animation could not be created, but simulation data is still available")
+
+    # Skip MP4 conversion to avoid ffmpeg dependency issues
+    # The GIF is sufficient for visualization purposes
 
 def plot_episode(agents, in_evaluate_mode,
     env_map=None, test_case_index=0, env_id=0,

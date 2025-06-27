@@ -1,0 +1,17 @@
+Metadata-Version: 2.2
+Name: Mosek
+Version: 11.0.13
+Summary: Python API for Mosek
+Author-email: Mosek ApS <support@mosek.com>
+License: https://mosek.com/products/license-agreement
+Project-URL: HOME, https://mosek.com
+Requires-Python: <3.14,>=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+
+MOSEK is a package for large-scale convex and mixed-integer optimization,
+including LP, QP, SOCP, exponential and power cone problems, SDP, QCQP and MIP.
+Documentation and examples can be found at the https://www.mosek.com/documentation. 
+MOSEK requires a license. Free of charge trial
+licenses as well as licenses for non-commercial academic use can be obtained
+from https://www.mosek.com.

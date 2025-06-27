@@ -51,14 +51,15 @@ class uav():
 
         # warning band width
         self.epsilon=SET.epsilon
-        # minimum radius
-        self.r_min=0.335
+        # minimum radius - use the user-provided value from SET
+        self.r_min=SET.r_min
 
         # the predetermined trajectory
         self.pre_traj=np.zeros((self.K+1,self.D))
-
+        
+        # Initialize pre_traj with initial position
         for i in range(self.K+1):
-            self.pre_traj[i]=ini_x
+            self.pre_traj[i] = ini_x.copy()
         
         self.pre_traj_list=[]
 

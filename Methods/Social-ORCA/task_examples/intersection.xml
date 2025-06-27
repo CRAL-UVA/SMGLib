@@ -1,9 +1,9 @@
 <?xrml version='1.0' encoding='utf-8'?>
 <root>
-    <agents number="2" type="orca">
+    <agents number="2" type="orca-return">
         <default_parameters size="0.3" movespeed="1" agentsmaxnum="2" timeboundary="5.4" sightradius="3.0" timeboundaryobst="33"/>
         <agent id="0" start.xr="5.0" start.yr="34.0" goal.xr="50.0" goal.yr="34.0"/>
-        <agent id="1" start.xr="34.0" start.yr="45.0" goal.xr="50.0" goal.yr="34.0"/>
+        <agent id="1" start.xr="34.0" start.yr="45.0" goal.xr="34.0" goal.yr="34.0"/>
     </agents>
     <obstacles number="8">
         <obstacle>
