@@ -541,7 +541,7 @@ def run_social_orca(config_file, num_robots):
         print(f"Error processing trajectories: {e}")
         return
 
-def run_social_impc_dr():
+def run_social_impc_dr(env_type='doorway'):
     print("\nRunning Social-IMPC-DR Simulation")
     print("=================================")
     
@@ -558,7 +558,6 @@ def run_social_impc_dr():
     subprocess.run([get_venv_python(), "app2.py"])
     
     # Evaluate trajectory if available
-<<<<<<< HEAD
     path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
     if path_deviation_files:
         print("\nEvaluating Social-IMPC-DR trajectories:")
@@ -639,33 +638,8 @@ def run_social_impc_dr():
             print("Flow Rate: Could not compute (invalid make-span or gap width)")
             print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
             print("*" * 65)
-=======
-    path_deviation_file = impc_dir / "path_deviation.csv"
-    if path_deviation_file.exists():
-        print("\nEvaluating Social-IMPC-DR trajectory:")
-        data = pd.read_csv(path_deviation_file)
-        
-        # Extract coordinates
-        actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
-        nominal_x, nominal_y = data.iloc[:, 2], data.iloc[:, 3]
-        
-        # Compute trajectory difference and L2 norm
-        diff_x, diff_y = actual_x - nominal_x, actual_y - nominal_y
-        l2_norm = np.sqrt(diff_x**2 + diff_y**2).sum()
-        
-        # Calculate Hausdorff distance
-        actual_trajectory = np.column_stack((actual_x, actual_y))
-        nominal_trajectory = np.column_stack((nominal_x, nominal_y))
-        hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
-        
-        print("*" * 65)
-        print("Social-IMPC-DR Path Deviation Metrics:")
-        print(f"L2 Norm: {l2_norm:.4f}")
-        print(f"Hausdorff distance: {hausdorff_dist:.4f}")
-        print("*" * 65)
->>>>>>> 80df112ab0d2e813be3888285f1ec9bc86ffa159
     else:
-        print(f"\nWarning: No path_deviation.csv file found in {impc_dir}")
+        print(f"\nWarning: No path_deviation_robot_*.csv files found in {impc_dir}")
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
@@ -1050,7 +1024,6 @@ def main():
             
             # Run the simulation
             run_social_orca(config_file, num_robots)
-<<<<<<< HEAD
         elif choice == 2:
             # Ask for environment type for IMPC-DR
             print("\nAvailable environments:")
@@ -1075,10 +1048,6 @@ def main():
             print("\nStarting Social-CADRL...")
             print("The CADRL simulation will prompt you for environment and agent configuration.")
             run_social_cadrl()
-=======
-        else:
-            run_social_impc_dr()
->>>>>>> 80df112ab0d2e813be3888285f1ec9bc86ffa159
     finally:
         # Always return to the original directory
         os.chdir(original_dir)
