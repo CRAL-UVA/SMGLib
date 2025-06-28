@@ -554,8 +554,9 @@ def run_social_impc_dr(env_type='doorway'):
     print(f"Changing to directory: {impc_dir}")
     os.chdir(impc_dir)
     
-    # Run app2.py directly to allow for user input
-    subprocess.run([get_venv_python(), "app2.py"])
+    # Run app2.py with environment type as command line argument
+    print(f"Running with environment type: {env_type}")
+    subprocess.run([get_venv_python(), "app2.py", env_type])
     
     # Evaluate trajectory if available
     path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
@@ -627,6 +628,7 @@ def run_social_impc_dr(env_type='doorway'):
             print("*" * 65)
             print(f"Social-IMPC-DR Flow Rate Calculation:")
             print(f"Scenario: {flow_rate_type}")
+            print(f"Environment: {env_type}")
             print(f"Number of agents: {num_agents}")
             print(f"Gap width (z): {gap_width} normalized units")
             print(f"Make-span (T): {make_span:.2f}s")
