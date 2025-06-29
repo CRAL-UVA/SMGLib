@@ -437,7 +437,14 @@ def run_social_orca(config_file, num_robots):
         elif 'hallway' in config_name:
             gap_width = 3.0  # hallway gap: between y=32 and y=35, effective width = 3 grid units  
         elif 'intersection' in config_name:
-            gap_width = 14.0  # intersection corridors: 25-39, so width = 14 grid units
+            # For the new four-corner intersection, calculate total corridor width
+            # The intersection has corridors on all four sides with a central open area
+            # North corridor: y=26-38 (width = 12)
+            # South corridor: y=26-38 (width = 12) 
+            # East corridor: x=26-38 (width = 12)
+            # West corridor: x=26-38 (width = 12)
+            # Total effective gap width = sum of all corridor widths = 48 grid units
+            gap_width = 14.0  # default intersection corridor width
         else:
             # Try to determine from obstacles in config file
             try:
@@ -471,7 +478,10 @@ def run_social_orca(config_file, num_robots):
                             elif max(y_coords) - min(y_coords) <= 1:  # Horizontal wall
                                 horizontal_walls.append((min(x_coords), max(x_coords)))
                     
-                    if vertical_walls:
+                    if len(obstacles) == 8:
+                        # Four-corner intersection detected
+                        gap_width = 14.0  # intersection corridor width
+                    elif vertical_walls:
                         # Doorway scenario - find gap between vertical walls
                         if len(vertical_walls) >= 2:
                             # Sort by y-coordinate to find gap
@@ -681,8 +691,8 @@ def generate_config(env_type, num_robots, robot_positions):
         row.text = '0 ' * 63 + '0'  # 64 zeros per row
     
     # Add obstacles based on environment type
-    obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
     if env_type == 'hallway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add hallway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '31'})
@@ -697,6 +707,7 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '36'})
     
     elif env_type == 'doorway':
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
         # Add doorway walls
         obstacle1 = ET.SubElement(obstacles, 'obstacle')
         ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
@@ -711,18 +722,61 @@ def generate_config(env_type, num_robots, robot_positions):
         ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
     
     elif env_type == 'intersection':
-        # Add intersection walls
-        obstacle1 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
+        obstacles = ET.SubElement(root, 'obstacles', {'number': '8'})
+        # Create a proper four-corner intersection with 8 obstacles
+        # Each corner has 2 obstacles forming the walls
         
-        obstacle2 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '30'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '31'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '30'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '31'})
+        # Top-left corner (north-west)
+        obstacle1 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
+        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '26', 'yr': '0'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '25'})
+        ET.SubElement(obstacle1, 'vertex', {'xr': '26', 'yr': '25'})
+        
+        obstacle2 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '25'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '26'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '25', 'yr': '25'})
+        ET.SubElement(obstacle2, 'vertex', {'xr': '25', 'yr': '26'})
+        
+        # Top-right corner (north-east)
+        obstacle3 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
+        ET.SubElement(obstacle3, 'vertex', {'xr': '38', 'yr': '0'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '39', 'yr': '0'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '38', 'yr': '25'})
+        ET.SubElement(obstacle3, 'vertex', {'xr': '39', 'yr': '25'})
+        
+        obstacle4 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
+        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '25'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '26'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '25'})
+        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '26'})
+        
+        # Bottom-left corner (south-west)
+        obstacle5 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
+        ET.SubElement(obstacle5, 'vertex', {'xr': '25', 'yr': '39'})
+        ET.SubElement(obstacle5, 'vertex', {'xr': '26', 'yr': '39'})
+        ET.SubElement(obstacle5, 'vertex', {'xr': '25', 'yr': '64'})
+        ET.SubElement(obstacle5, 'vertex', {'xr': '26', 'yr': '64'})
+        
+        obstacle6 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
+        ET.SubElement(obstacle6, 'vertex', {'xr': '0', 'yr': '38'})
+        ET.SubElement(obstacle6, 'vertex', {'xr': '0', 'yr': '39'})
+        ET.SubElement(obstacle6, 'vertex', {'xr': '25', 'yr': '38'})
+        ET.SubElement(obstacle6, 'vertex', {'xr': '25', 'yr': '39'})
+        
+        # Bottom-right corner (south-east)
+        obstacle7 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
+        ET.SubElement(obstacle7, 'vertex', {'xr': '38', 'yr': '39'})
+        ET.SubElement(obstacle7, 'vertex', {'xr': '39', 'yr': '39'})
+        ET.SubElement(obstacle7, 'vertex', {'xr': '38', 'yr': '64'})
+        ET.SubElement(obstacle7, 'vertex', {'xr': '39', 'yr': '64'})
+        
+        obstacle8 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
+        ET.SubElement(obstacle8, 'vertex', {'xr': '39', 'yr': '38'})
+        ET.SubElement(obstacle8, 'vertex', {'xr': '39', 'yr': '39'})
+        ET.SubElement(obstacle8, 'vertex', {'xr': '64', 'yr': '38'})
+        ET.SubElement(obstacle8, 'vertex', {'xr': '64', 'yr': '39'})
     
     # Add algorithm section
     algorithm = ET.SubElement(root, 'algorithm')
@@ -974,7 +1028,12 @@ def main():
                 print("- X coordinates should be between 0 and 63")
             elif env_type == 'intersection':
                 print("\nIntersection Configuration:")
-                print("- The intersection has walls at x=30-31 and y=30-31")
+                print("- The intersection has 8 obstacles forming corridors on all four sides")
+                print("- Central open area: x=26-38, y=26-38")
+                print("- North corridor: y=0-25 (use y=12.5 for north approach)")
+                print("- South corridor: y=39-64 (use y=51.5 for south approach)")
+                print("- East corridor: x=39-64 (use x=51.5 for east approach)")
+                print("- West corridor: x=0-25 (use x=12.5 for west approach)")
                 print("- X and Y coordinates should be between 0 and 63")
             
             # Get robot positions
