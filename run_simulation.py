@@ -552,106 +552,291 @@ def run_social_orca(config_file, num_robots):
         return
 
 def run_social_impc_dr(env_type='doorway'):
-    print("\nRunning Social-IMPC-DR Simulation")
-    print("=================================")
+    """Run Social-IMPC-DR by switching to its directory and calling app2.py."""
+    print("\nRunning Social-IMPC-DR simulation...")
     
-    # Change to Social-IMPC-DR directory using absolute path
-    impc_dir = Path(__file__).parent / "Methods" / "Social-IMPC-DR"
-    if not impc_dir.exists():
-        print(f"Error: Directory {impc_dir} not found!")
-        return
+    # Create IMPC-DR-specific working directory
+    impc_dir = Path("Methods/Social-IMPC-DR").resolve()  # Get absolute path
+    original_dir = os.getcwd()
     
-    print(f"Changing to directory: {impc_dir}")
-    os.chdir(impc_dir)
+    print(f"IMPC-DR directory: {impc_dir}")
+    print(f"Original directory: {original_dir}")
     
-    # Run app2.py with environment type as command line argument
-    print(f"Running with environment type: {env_type}")
-    subprocess.run([get_venv_python(), "app2.py", env_type])
-    
-    # Evaluate trajectory if available
-    path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
-    if path_deviation_files:
-        print("\nEvaluating Social-IMPC-DR trajectories:")
-        num_agents = len(path_deviation_files)
-        max_steps = 0
-        for path_deviation_file in path_deviation_files:
-            data = pd.read_csv(path_deviation_file)
-            # Extract coordinates
-            actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
-            nominal_x, nominal_y = data.iloc[:, 2], data.iloc[:, 3]
-            # Compute trajectory difference and L2 norm
-            diff_x, diff_y = actual_x - nominal_x, actual_y - nominal_y
-            l2_norm = np.sqrt(diff_x**2 + diff_y**2).sum()
-            # Calculate Hausdorff distance
-            actual_trajectory = np.column_stack((actual_x, actual_y))
-            nominal_trajectory = np.column_stack((nominal_x, nominal_y))
-            hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
-            print("*" * 65)
-            print(f"Robot {path_deviation_file.stem.split('_')[-1]} Path Deviation Metrics:")
-            print(f"L2 Norm: {l2_norm:.4f}")
-            print(f"Hausdorff distance: {hausdorff_dist:.4f}")
-            print("*" * 65)
-            # Track max steps for make-span
-            if len(data) > max_steps:
-                max_steps = len(data)
-        # Flow Rate calculation
-        # Try to get step size from app2.py arguments (default 0.1)
-        step_size = 0.1
-        # Set gap width z based on env_type (these are in different coordinate systems)
-        # Social-IMPC-DR uses normalized coordinates (0-2.5 scale), while ORCA uses grid coordinates (0-64)
-        if env_type == 'doorway':
-            gap_width = 0.8  # gap_end - gap_start = 1.6 - 0.8 = 0.8 (normalized units)
-        elif env_type == 'hallway':
-            gap_width = 1.0  # effective corridor width in normalized units
-        elif env_type == 'intersection':
-            gap_width = 0.8  # corridor total width (2 * corridor_half_width = 2 * 0.4 = 0.8) (normalized units)
-        else:
-            gap_width = 1.0  # fallback
+    try:
+        # Check if IMPC-DR environment is set up, create if not
+        impc_venv = impc_dir / "venv"
+        setup_marker = impc_venv / "impc_setup_complete"
         
-        # Try to get actual completion step (when all robots reached goals)
-        completion_step_file = os.path.join(impc_dir, "completion_step.txt")
-        actual_completion_steps = max_steps  # fallback to max_steps
-        if os.path.exists(completion_step_file):
-            try:
-                with open(completion_step_file, 'r') as f:
-                    actual_completion_steps = int(f.read().strip())
-                print(f"Using actual completion time: {actual_completion_steps} steps (goals reached)")
-            except:
-                print(f"Could not read completion step file, using max steps: {max_steps}")
-        else:
-            print(f"No completion step file found, using max steps: {max_steps}")
-        
-        make_span = actual_completion_steps * step_size
-        
-        # Enhanced flow rate calculation for Social-IMPC-DR
-        if make_span > 0 and gap_width > 0:
-            if actual_completion_steps < max_steps:
-                # All robots reached their goals before the simulation ended
-                flow_rate_type = "All agents reached goals"
-                effective_agents = num_agents
-            else:
-                # Simulation ended without all robots reaching goals - check individual completion
-                flow_rate_type = f"Simulation completed (check individual robot completion)"
-                effective_agents = num_agents  # Use all agents but note the limitation
+        if not setup_marker.exists():
+            print("\n" + "="*50)
+            print("IMPC-DR ENVIRONMENT SETUP")
+            print("="*50)
+            print("First-time setup: Preparing IMPC-DR environment...")
             
-            flow_rate = effective_agents / (gap_width * make_span)
-            print("*" * 65)
-            print(f"Social-IMPC-DR Flow Rate Calculation:")
-            print(f"Scenario: {flow_rate_type}")
-            print(f"Environment: {env_type}")
-            print(f"Number of agents: {num_agents}")
-            print(f"Gap width (z): {gap_width} normalized units")
-            print(f"Make-span (T): {make_span:.2f}s")
-            print(f"Completion step: {actual_completion_steps}/{max_steps}")
-            print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
-            print("*" * 65)
+            if not setup_impc_environment(impc_dir):
+                print("✗ Failed to set up IMPC-DR environment!")
+                return
+            
+            print("✓ IMPC-DR environment setup complete!")
+            print("="*50)
+        
+        # Get the full path to the app2.py script
+        script_path = impc_dir / "app2.py"
+        
+        # Verify the script exists
+        if not script_path.exists():
+            print(f"✗ IMPC-DR script not found at: {script_path}")
+            # Try to list what's actually in the directory
+            if impc_dir.exists():
+                print(f"Directory contents: {list(impc_dir.iterdir())}")
+            else:
+                print(f"Directory doesn't exist: {impc_dir}")
+            return
         else:
-            print("*" * 65)
-            print("Flow Rate: Could not compute (invalid make-span or gap width)")
-            print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
-            print("*" * 65)
+            print(f"✓ Found IMPC-DR script at: {script_path}")
+            
+        # Change to the IMPC-DR directory
+        os.chdir(impc_dir)
+        print(f"Changed to directory: {impc_dir}")
+        
+        # Add the IMPC-DR directory to Python path
+        import sys
+        sys.path.insert(0, str(impc_dir))
+        
+        try:
+            # Import and run the IMPC-DR script
+            print(f"Starting IMPC-DR simulation with environment: {env_type}")
+            
+            # Clear any existing app2 module to avoid conflicts
+            if 'app2' in sys.modules:
+                del sys.modules['app2']
+            
+            # Try to run app2 directly
+            try:
+                import app2
+                print("✓ Successfully imported app2")
+                
+                # Call the main function from app2 with environment type
+                # We need to pass the environment type as a command line argument
+                import sys
+                original_argv = sys.argv.copy()
+                sys.argv = ['app2.py', env_type]
+                
+                try:
+                    # Call the main function if it exists, otherwise run the script
+                    if hasattr(app2, 'main'):
+                        result = app2.main()
+                    else:
+                        # Execute the script content
+                        with open(script_path, 'r') as f:
+                            script_content = f.read()
+                        exec(script_content, {'__name__': '__main__'})
+                        result = 0
+                    
+                    if result == 0 or result is None:  # Some scripts may not return a value
+                        print("✓ IMPC-DR simulation completed successfully!")
+                        
+                        # Look for generated trajectory files
+                        path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
+                        if path_deviation_files:
+                            print(f"✓ Found {len(path_deviation_files)} trajectory files")
+                            
+                            # Evaluate trajectories
+                            evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
+                        else:
+                            print("⚠ No trajectory files found")
+                    else:
+                        print("✗ IMPC-DR simulation completed with errors")
+                        
+                finally:
+                    # Restore original argv
+                    sys.argv = original_argv
+                    
+            except ImportError as import_error:
+                print(f"Import error: {import_error}")
+                print("Trying alternative execution method...")
+                
+                # Alternative: execute the script file directly with subprocess
+                print(f"Executing script directly: {script_path}")
+                result = subprocess.run([get_venv_python(), "app2.py", env_type], 
+                                      cwd=impc_dir, capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    print("✓ IMPC-DR simulation completed successfully!")
+                    print(result.stdout)
+                    
+                    # Look for generated trajectory files
+                    path_deviation_files = list(impc_dir.glob("path_deviation_robot_*.csv"))
+                    if path_deviation_files:
+                        print(f"✓ Found {len(path_deviation_files)} trajectory files")
+                        
+                        # Evaluate trajectories
+                        evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
+                    else:
+                        print("⚠ No trajectory files found")
+                else:
+                    print("✗ IMPC-DR simulation failed")
+                    print(f"Error: {result.stderr}")
+                
+            except Exception as run_error:
+                print(f"Error running IMPC-DR script: {run_error}")
+                import traceback
+                traceback.print_exc()
+                
+        finally:
+            # Remove IMPC-DR path from sys.path
+            if str(impc_dir) in sys.path:
+                sys.path.remove(str(impc_dir))
+            # Clean up imported module
+            if 'app2' in sys.modules:
+                del sys.modules['app2']
+        
+    except Exception as e:
+        print(f"✗ Error running IMPC-DR: {e}")
+    finally:
+        os.chdir(original_dir)
+
+
+def setup_impc_environment(impc_dir):
+    """Set up IMPC-DR-specific virtual environment with compatible dependencies."""
+    
+    venv_dir = impc_dir / "venv"
+    
+    try:
+        # Remove existing environment if it exists
+        if venv_dir.exists():
+            print("Removing existing environment...")
+            shutil.rmtree(venv_dir)
+        
+        # Create new virtual environment
+        print("Creating virtual environment...")
+        venv.create(venv_dir, with_pip=True)
+        
+        # Get python and pip executables for the new environment
+        if sys.platform == "win32":
+            python_exe = venv_dir / "Scripts" / "python.exe"
+            pip_exe = venv_dir / "Scripts" / "pip.exe"
+        else:
+            python_exe = venv_dir / "bin" / "python"
+            pip_exe = venv_dir / "bin" / "pip"
+        
+        print("Installing IMPC-DR dependencies...")
+        
+        # Install requirements from the IMPC-DR directory
+        requirements_file = impc_dir / "requirements.txt"
+        if requirements_file.exists():
+            print(f"Installing from {requirements_file}")
+            subprocess.run([str(pip_exe), "install", "-r", str(requirements_file)], 
+                         check=True, capture_output=True, text=True)
+        else:
+            print("No requirements.txt found, installing basic dependencies...")
+            # Install basic dependencies that IMPC-DR likely needs
+            basic_deps = ["numpy", "matplotlib", "pandas", "scipy"]
+            for dep in basic_deps:
+                try:
+                    subprocess.run([str(pip_exe), "install", dep], 
+                                 check=True, capture_output=True, text=True)
+                except subprocess.CalledProcessError as e:
+                    print(f"Warning: Could not install {dep}: {e}")
+        
+        print("✓ IMPC-DR environment structure created")
+        print("✓ Dependencies installed")
+        
+        # Create a marker file to indicate the environment is set up
+        marker_file = venv_dir / "impc_setup_complete"
+        marker_file.touch()
+        
+        print("Environment setup completed successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"Error setting up IMPC-DR environment: {e}")
+        return False
+
+
+def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
+    """Evaluate IMPC-DR trajectories and calculate metrics."""
+    print("\nEvaluating Social-IMPC-DR trajectories:")
+    num_agents = len(path_deviation_files)
+    max_steps = 0
+    
+    for path_deviation_file in path_deviation_files:
+        data = pd.read_csv(path_deviation_file)
+        # Extract coordinates
+        actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
+        nominal_x, nominal_y = data.iloc[:, 2], data.iloc[:, 3]
+        # Compute trajectory difference and L2 norm
+        diff_x, diff_y = actual_x - nominal_x, actual_y - nominal_y
+        l2_norm = np.sqrt(diff_x**2 + diff_y**2).sum()
+        # Calculate Hausdorff distance
+        actual_trajectory = np.column_stack((actual_x, actual_y))
+        nominal_trajectory = np.column_stack((nominal_x, nominal_y))
+        hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
+        print("*" * 65)
+        print(f"Robot {path_deviation_file.stem.split('_')[-1]} Path Deviation Metrics:")
+        print(f"L2 Norm: {l2_norm:.4f}")
+        print(f"Hausdorff distance: {hausdorff_dist:.4f}")
+        print("*" * 65)
+        # Track max steps for make-span
+        if len(data) > max_steps:
+            max_steps = len(data)
+    
+    # Flow Rate calculation
+    # Try to get step size from app2.py arguments (default 0.1)
+    step_size = 0.1
+    # Set gap width z based on env_type (these are in different coordinate systems)
+    # Social-IMPC-DR uses normalized coordinates (0-2.5 scale), while ORCA uses grid coordinates (0-64)
+    if env_type == 'doorway':
+        gap_width = 0.8  # gap_end - gap_start = 1.6 - 0.8 = 0.8 (normalized units)
+    elif env_type == 'hallway':
+        gap_width = 1.0  # effective corridor width in normalized units
+    elif env_type == 'intersection':
+        gap_width = 0.8  # corridor total width (2 * corridor_half_width = 2 * 0.4 = 0.8) (normalized units)
     else:
-        print(f"\nWarning: No path_deviation_robot_*.csv files found in {impc_dir}")
+        gap_width = 1.0  # fallback
+    
+    # Try to get actual completion step (when all robots reached goals)
+    completion_step_file = os.path.join(impc_dir, "completion_step.txt")
+    actual_completion_steps = max_steps  # fallback to max_steps
+    if os.path.exists(completion_step_file):
+        try:
+            with open(completion_step_file, 'r') as f:
+                actual_completion_steps = int(f.read().strip())
+            print(f"Using actual completion time: {actual_completion_steps} steps (goals reached)")
+        except:
+            print(f"Could not read completion step file, using max steps: {max_steps}")
+    else:
+        print(f"No completion step file found, using max steps: {max_steps}")
+    
+    make_span = actual_completion_steps * step_size
+    
+    # Enhanced flow rate calculation for Social-IMPC-DR
+    if make_span > 0 and gap_width > 0:
+        if actual_completion_steps < max_steps:
+            # All robots reached their goals before the simulation ended
+            flow_rate_type = "All agents reached goals"
+            effective_agents = num_agents
+        else:
+            # Simulation ended without all robots reaching goals - check individual completion
+            flow_rate_type = f"Simulation completed (check individual robot completion)"
+            effective_agents = num_agents  # Use all agents but note the limitation
+        
+        flow_rate = effective_agents / (gap_width * make_span)
+        print("*" * 65)
+        print(f"Social-IMPC-DR Flow Rate Calculation:")
+        print(f"Scenario: {flow_rate_type}")
+        print(f"Environment: {env_type}")
+        print(f"Number of agents: {num_agents}")
+        print(f"Gap width (z): {gap_width} normalized units")
+        print(f"Make-span (T): {make_span:.2f}s")
+        print(f"Completion step: {actual_completion_steps}/{max_steps}")
+        print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
+        print("*" * 65)
+    else:
+        print("*" * 65)
+        print("Flow Rate: Could not compute (invalid make-span or gap width)")
+        print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
+        print("*" * 65)
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
