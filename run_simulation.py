@@ -641,8 +641,9 @@ def run_social_impc_dr(env_type='doorway'):
                         if path_deviation_files:
                             print(f"✓ Found {len(path_deviation_files)} trajectory files")
                             
-                            # Evaluate trajectories
+                            # Evaluate trajectories and velocities
                             evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
+                            evaluate_impc_velocities(impc_dir)
                         else:
                             print("⚠ No trajectory files found")
                     else:
@@ -670,8 +671,9 @@ def run_social_impc_dr(env_type='doorway'):
                     if path_deviation_files:
                         print(f"✓ Found {len(path_deviation_files)} trajectory files")
                         
-                        # Evaluate trajectories
+                        # Evaluate trajectories and velocities
                         evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
+                        evaluate_impc_velocities(impc_dir)
                     else:
                         print("⚠ No trajectory files found")
                 else:
@@ -753,6 +755,34 @@ def setup_impc_environment(impc_dir):
         print(f"Error setting up IMPC-DR environment: {e}")
         return False
 
+
+def evaluate_impc_velocities(impc_dir):
+    """Evaluate IMPC-DR velocities and calculate average delta velocity."""
+    print("\nEvaluating Social-IMPC-DR velocities:")
+    
+    # Look for velocity CSV files
+    velocity_files = list(impc_dir.glob("avg_delta_velocity_robot_*.csv"))
+    
+    if not velocity_files:
+        print("No velocity CSV files found")
+        return
+    
+    for velocity_file in velocity_files:
+        robot_id = velocity_file.stem.split('_')[-1]
+        data = pd.read_csv(velocity_file)
+        
+        # Calculate resultant velocity
+        data['resultant_velocity'] = np.sqrt(data['vx']**2 + data['vy']**2)
+        
+        # Calculate differences
+        diffs = np.diff(data['resultant_velocity'])
+        abs_diffs = np.abs(diffs)
+        sum_abs_diffs = np.sum(abs_diffs)
+        
+        # Print the average delta velocity
+        print("*" * 65)
+        print(f"Avg delta velocity for robot {robot_id}: {sum_abs_diffs:.4f}")
+        print("*" * 65)
 
 def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
     """Evaluate IMPC-DR trajectories and calculate metrics."""
