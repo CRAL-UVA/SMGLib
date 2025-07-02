@@ -7,7 +7,6 @@ import pickle
 import copy
 import os
 import csv
-import evaluate
 
 def data_capture(a, b, c):
     data = {
@@ -144,7 +143,6 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
             #break
             
         #ReachGoal=check_reach_target(agent_list)
-    evaluate.evaluateMetrics()
 
     obj['goal'] = SET.target
 
