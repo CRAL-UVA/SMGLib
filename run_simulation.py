@@ -351,6 +351,41 @@ def run_social_orca(config_file, num_robots):
         
         evaluate_velocities(velocity_csv)
         
+        # After evaluating trajectories, compute Makespan Ratios for Social-ORCA
+        ttg_list = []
+        goal_positions = []
+        # First, get goal positions from the trajectory files (last nominal position)
+        for i, traj_file in enumerate(trajectory_files):
+            data = pd.read_csv(traj_file)
+            goal_x, goal_y = data.iloc[-1, 2], data.iloc[-1, 3]
+            goal_positions.append((goal_x, goal_y))
+        # Now, for each agent, find the first step where actual position is close to goal
+        threshold = 0.05  # distance threshold to consider as 'reached goal'
+        for i, traj_file in enumerate(trajectory_files):
+            data = pd.read_csv(traj_file)
+            actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
+            goal_x, goal_y = goal_positions[i]
+            ttg = len(data)  # default: never reached
+            for step, (x, y) in enumerate(zip(actual_x, actual_y), 1):
+                if np.linalg.norm([x - goal_x, y - goal_y]) < threshold:
+                    ttg = step
+                    break
+            ttg_list.append([i, ttg])
+        # Save TTGs to CSV
+        with open("ttg_orca.csv", mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["robot_id", "ttg"])
+            writer.writerows(ttg_list)
+        # Compute and print Makespan Ratios
+        ttgs = [row[1] for row in ttg_list]
+        fastest_ttg = min(ttgs)
+        print("*" * 65)
+        print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
+        for robot_id, ttg in ttg_list:
+            mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')
+            print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f}")
+        print("*" * 65)
+        
         # Flow Rate calculation for ORCA
         print("\nCalculating Flow Rate...")
         
