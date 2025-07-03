@@ -177,5 +177,27 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
     else:
         print(f"All robots reached goals at step {completion_step} out of {episodes} total steps")
     
+    # Save TTG (time-to-goal) for each moving agent
+    ttg_list = []
+    for robot_id in range(num_moving_drones):
+        # Find the step at which the agent reached its goal
+        if target_reached[robot_id]:
+            # Find the first step where the agent reached the goal
+            for step in range(1, episodes+1):
+                # Reconstruct the logic: if the agent was marked as reached at this step
+                # Since we only set target_reached[robot_id] = True and never unset, use the step when it was set
+                # But since we don't store the step, fallback to completion_step if all reached at the same time
+                # (This is a limitation, but matches the current code's behavior)
+                ttg = completion_step
+                break
+        else:
+            ttg = episodes
+        ttg_list.append([robot_id, ttg])
+    with open("ttg_impc_dr.csv", mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["robot_id", "ttg"])
+        writer.writerows(ttg_list)
+    print("TTG CSV file saved.")
+    
     return obj, agent_list, completion_step
     

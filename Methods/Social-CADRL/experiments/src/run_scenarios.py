@@ -430,6 +430,7 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     
     # Initialize data collection for evaluation metrics (only for dynamic/moving agents)
     agent_tracking_data = []
+    dynamic_agent_counter = 0
     for j, agent in enumerate(dynamic_agents):
         agent_idx = agents.index(agent)
         start_pos = [agent.pos_global_frame[0], agent.pos_global_frame[1]]
@@ -439,18 +440,23 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
         distance_start_to_goal = np.linalg.norm(np.array(goal_pos) - np.array(start_pos))
         if distance_start_to_goal > 0.1:  # Threshold to identify moving robots
             agent_data = {
-                'id': agent_idx,
+                'id': dynamic_agent_counter,  # Use 0-based counter for dynamic agents
+                'original_id': agent_idx,  # Keep original ID for reference
                 'positions': [],
                 'velocities': [],
                 'start_pos': start_pos,
                 'goal_pos': goal_pos
             }
             agent_tracking_data.append(agent_data)
+            dynamic_agent_counter += 1
     
     print(f"Tracking {len(agent_tracking_data)} moving agents for evaluation metrics")
     
     print(f"\nStarting simulation for {num_steps} steps...")
     time_step = 0.1  # CADRL simulation time step
+    
+    # Store completion times for makespan ratio
+    completion_times = {}
     
     for i in range(num_steps):
         # Get actions for dynamic agents only
@@ -496,11 +502,11 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
                     direction = direction / distance
                     action = direction * agent.pref_speed
                     actions[agent_idx] = action
-
+        
         # Execute simulation step
         obs, rewards, terminated, truncated, which_agents_done = env.step(actions)
         
-        # Store current positions of all agents for animation
+        # Store current positions of all agents
         current_positions = []
         for agent in agents:
             current_positions.append([agent.pos_global_frame[0], agent.pos_global_frame[1]])
@@ -508,8 +514,8 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
         
         # Collect trajectory and velocity data for evaluation (only for tracked moving agents)
         for tracking_idx, tracking_data in enumerate(agent_tracking_data):
-            # Find the corresponding dynamic agent by ID
-            agent_idx = tracking_data['id']
+            # Find the corresponding dynamic agent by original ID
+            agent_idx = tracking_data['original_id']
             
             # Find the agent object in dynamic_agents
             agent = None
@@ -536,6 +542,12 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
                     velocity = actions.get(agent_idx, [0.0, 0.0])
                 
                 agent_tracking_data[tracking_idx]['velocities'].append(velocity)
+                
+                # Check if agent has reached goal and record completion time
+                distance_to_goal = np.linalg.norm(agent.goal_global_frame - agent.pos_global_frame)
+                if distance_to_goal <= 0.3 and tracking_data['id'] not in completion_times:
+                    completion_times[tracking_data['id']] = i * time_step
+                    print(f"Agent {tracking_data['id']} reached goal at time {completion_times[tracking_data['id']]:.2f}s")
         
         # Check if any dynamic agents have reached their goals
         agents_at_goal = []
@@ -546,12 +558,6 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
                 agents_at_goal.append(agent)
             else:
                 agents_still_moving.append(agent)
-            
-            # Optional debug output every 10 steps (disabled for cleaner output)
-            # if i % 10 == 0 and i > 0:
-            #     print(f"Step {i}, Agent {j+1}: Pos=({agent.pos_global_frame[0]:.2f}, {agent.pos_global_frame[1]:.2f}), "
-            #           f"Goal=({agent.goal_global_frame[0]:.2f}, {agent.goal_global_frame[1]:.2f}), "
-            #           f"Distance={distance_to_goal:.2f}")
         
         all_dynamic_done = len(agents_still_moving) == 0
         
@@ -574,6 +580,23 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
 
     # Reset environment at the end
     env.reset()
+    
+    # Calculate and display makespan ratio
+    if len(completion_times) >= 2:
+        fastest_time = min(completion_times.values())
+        if fastest_time > 0:
+            makespan_ratios = {agent_idx: time/fastest_time for agent_idx, time in completion_times.items()}
+            avg_makespan_ratio = sum(makespan_ratios.values()) / len(makespan_ratios)
+            max_makespan_ratio = max(makespan_ratios.values())
+            
+            print("\nMakespan Ratio Metrics:")
+            print("=" * 65)
+            print(f"Average Makespan Ratio: {avg_makespan_ratio:.4f}")
+            print(f"Maximum Makespan Ratio: {max_makespan_ratio:.4f}")
+            print(f"Fastest Agent Time: {fastest_time:.4f} seconds")
+            for agent_idx, ratio in makespan_ratios.items():
+                print(f"Agent {agent_idx} Makespan Ratio: {ratio:.4f} (Time: {completion_times[agent_idx]:.4f}s)")
+            print("=" * 65)
 
     # Evaluate CADRL performance with comprehensive metrics
     evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
@@ -581,96 +604,8 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     # Save trajectory data for further analysis
     output_dir = Path("logs/cadrl_evaluation")
     save_cadrl_trajectory_data(agent_tracking_data, output_dir, time_step)
-    print(f"\nTrajectory data saved to: {output_dir}")
-
-    # Create animation
-    print("\nCreating animation...")
-    fig, ax = plt.subplots(figsize=(12, 10))
-    ax.set_xlim(-10, 10)
-    ax.set_ylim(-10, 10)
-    ax.set_aspect('equal')
-    ax.grid(True)
-
-    # Create scatter plots for dynamic agents only
-    agent_scatter = ax.scatter([], [], c='blue', s=200, label='Agent')
     
-    # Plot static obstacles as gray circles
-    if obstacle_coords:
-        obstacle_x = [coord[0] for coord in obstacle_coords]
-        obstacle_y = [coord[1] for coord in obstacle_coords]
-        ax.scatter(obstacle_x, obstacle_y, c='gray', s=200, alpha=0.8, label='Obstacle')
-
-    # Create goal markers for dynamic agents only
-    for agent in dynamic_agents:
-        goal = agent.goal_global_frame
-        ax.plot(goal[0], goal[1], 'g*', markersize=15, label='Goal' if agent.id == dynamic_agents[0].id else "")
-
-    # Custom legend handles
-    agent_handle = mlines.Line2D([], [], color='blue', marker='o', linestyle='None', markersize=10, label='Agent')
-    obstacle_handle = mlines.Line2D([], [], color='gray', marker='o', linestyle='None', markersize=10, label='Obstacle')
-    goal_handle = mlines.Line2D([], [], color='green', marker='*', linestyle='None', markersize=10, label='Goal')
-
-    # Place legend outside the plot
-    ax.legend(
-        [agent_handle, obstacle_handle, goal_handle],
-        ['Agent', 'Obstacle', 'Goal'],
-        loc='center left', bbox_to_anchor=(1.01, 0.5), fontsize=14, borderaxespad=0., markerscale=1.5
-    )
-
-    # Adjust layout to prevent legend cutoff
-    plt.tight_layout()
-    plt.subplots_adjust(right=0.8)
-
-    # Animation update function - only animate dynamic agents
-    def update(frame):
-        if frame < len(positions_history):
-            # Get positions of dynamic agents only
-            dynamic_agent_positions = []
-            for agent in dynamic_agents:
-                # Find this dynamic agent's index in the full agents list
-                agent_index = agents.index(agent)
-                pos = positions_history[frame][agent_index]
-                dynamic_agent_positions.append(pos)
-            
-            # Update agent scatter plot with dynamic agents only
-            if dynamic_agent_positions:
-                agent_scatter.set_offsets(np.array(dynamic_agent_positions).reshape(-1, 2))
-            else:
-                agent_scatter.set_offsets(np.empty((0, 2)))
-                
-        return [agent_scatter]
-
-    # Create animation with slower speed for better visibility
-    anim = animation.FuncAnimation(fig, update, frames=len(positions_history), interval=150, blit=True)
-
-    # Save animation in the correct animations directory with unique name
-    animations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'animations')
-    os.makedirs(animations_dir, exist_ok=True)
-    
-    # Create unique filename based on configuration
-    agent_count = len([a for a in agents if hasattr(a, 'policy')])
-    agent_summary = f"{agent_count}agents"
-    if user_agents and len(user_agents) > 0:
-        # Add position summary for first 2 agents
-        if len(user_agents) >= 1:
-            sx, sy, gx, gy = user_agents[0][:4]
-            agent_summary += f"_s{sx:.0f}_{sy:.0f}_g{gx:.0f}_{gy:.0f}"
-        if len(user_agents) >= 2:
-            sx, sy, gx, gy = user_agents[1][:4]
-            agent_summary += f"_s{sx:.0f}_{sy:.0f}_g{gx:.0f}_{gy:.0f}"
-    else:
-        agent_summary += "_default"
-    
-    filename = os.path.join(animations_dir, f"{scenario_type}_{agent_summary}.gif")
-    
-    # Save animation
-    anim.save(filename, writer='pillow')
-    print(f"Animation saved as {filename}")
-
-    # Don't show plot to prevent freezing
-    plt.close()
-
-    return env, agents
+    return evaluation_results
 
 def parse_cli_args():
     """Parse command line arguments"""
@@ -1012,6 +947,49 @@ def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
     total_max_deviation = 0.0
     total_avg_delta_velocity = 0.0
     
+    # Calculate completion times for each agent based on velocity
+    completion_times = []
+    for agent in agent_data:
+        agent_id = agent['id']
+        velocities = agent['velocities']
+        positions = agent['positions']
+        goal_pos = agent['goal_pos']
+        
+        # Calculate resultant velocities
+        resultant_velocities = [np.sqrt(v[0]**2 + v[1]**2) for v in velocities]
+        
+        # Find when robot stops moving (velocity near zero)
+        velocity_threshold = 1e-10
+        last_moving_idx = None
+        for i in range(len(resultant_velocities) - 1, 0, -1):
+            if resultant_velocities[i] > velocity_threshold:
+                last_moving_idx = i
+                break
+        
+        if last_moving_idx is not None:
+            completion_time = last_moving_idx * time_step
+            completion_times.append(completion_time)
+            print(f"Agent {agent_id} completion time: {completion_time:.2f}s at step {last_moving_idx}")
+        else:
+            # If no movement found, use the last timestep
+            completion_time = (len(velocities) - 1) * time_step
+            completion_times.append(completion_time)
+            print(f"Agent {agent_id} never moved significantly, using final timestep")
+    
+    # Calculate makespan ratio (only for dynamic agents)
+    if len(completion_times) >= 2:
+        fastest_time = min(completion_times)
+        slowest_time = max(completion_times)
+        if fastest_time > 0:
+            makespan_ratio = slowest_time / fastest_time
+            print("\n" + "="*65)
+            print("MAKESPAN RATIO")
+            print("="*65)
+            print(f"Fastest Agent Time: {fastest_time:.4f} seconds")
+            print(f"Slowest Agent Time: {slowest_time:.4f} seconds")
+            print(f"Makespan Ratio: {makespan_ratio:.4f}")
+            print("="*65 + "\n")
+    
     # Evaluate each moving agent (agent_data already contains only moving agents)
     for agent in agent_data:
         agent_id = agent['id']
@@ -1058,21 +1036,6 @@ def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
         
         # Calculate makespan and flow rate
         gap_width = get_gap_width(scenario_type)
-        
-        # Calculate makespan (time for all agents to complete)
-        completion_times = []
-        for agent in agent_data:
-            positions = agent['positions']
-            goal_pos = agent['goal_pos']
-            
-            # Find when agent reached goal (within 0.3 units)
-            for i, pos in enumerate(positions):
-                distance_to_goal = np.linalg.norm(np.array(pos) - np.array(goal_pos))
-                if distance_to_goal <= 0.3:
-                    completion_time = i * time_step
-                    completion_times.append(completion_time)
-                    break
-        
         makespan = max(completion_times) if completion_times else 0.0
         flow_rate = calculate_flow_rate(agent_data, time_step, gap_width)
         
@@ -1098,11 +1061,12 @@ def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
         'avg_path_deviation': total_avg_deviation/num_moving_agents if num_moving_agents > 0 else 0,
         'max_path_deviation': total_max_deviation,
         'avg_delta_velocity': total_avg_delta_velocity/num_moving_agents if num_moving_agents > 0 else 0,
-        'makespan': makespan if num_moving_agents > 0 else 0,
+        'makespan': slowest_time if len(completion_times) >= 2 else 0,
         'gap_width': gap_width,
         'flow_rate': flow_rate if num_moving_agents > 0 else 0,
         'success_rate': success_rate if num_moving_agents > 0 else 0,
-        'num_moving_agents': num_moving_agents
+        'num_moving_agents': num_moving_agents,
+        'makespan_ratio': makespan_ratio if len(completion_times) >= 2 else 1.0
     }
 
 def main():
@@ -1171,7 +1135,7 @@ def main():
     
     # Run the scenario
     try:
-        env, agents = run_scenario(scenario_type, user_agents, 
+        evaluation_results = run_scenario(scenario_type, user_agents, 
                                  num_steps=getattr(args, 'steps', 100))
         
         if not args.quiet:

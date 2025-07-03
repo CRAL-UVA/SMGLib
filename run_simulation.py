@@ -868,6 +868,22 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
         print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
         print("*" * 65)
 
+    # Makespan Ratio calculation
+    ttg_file = os.path.join(impc_dir, "ttg_impc_dr.csv")
+    if os.path.exists(ttg_file):
+        ttg_df = pd.read_csv(ttg_file)
+        fastest_ttg = ttg_df['ttg'].min()
+        print("*" * 65)
+        print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
+        for idx, row in ttg_df.iterrows():
+            mr = row['ttg'] / fastest_ttg if fastest_ttg > 0 else float('inf')
+            print(f"Robot {int(row['robot_id'])}: TTG = {row['ttg']}, MR = {mr:.4f}")
+        print("*" * 65)
+    else:
+        print("*" * 65)
+        print("Warning: TTG file not found, cannot compute Makespan Ratios.")
+        print("*" * 65)
+
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
     root = ET.Element('root')
