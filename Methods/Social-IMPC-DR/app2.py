@@ -176,8 +176,12 @@ def setup_doorway_scenario():
     gap_start = 0.8 # y-coordinate for the start of the gap
     gap_end = 1.6   # y-coordinate for the end of the gap. Gap width is now 0.8.
     
-    # y-coordinates for the wall segments
-    obstacle_ys = np.concatenate([np.linspace(0.2, gap_start, 4), np.linspace(gap_end, 2.3, 4)])
+    # y-coordinates for the wall segments - increased density for better coverage
+    # More obstacles to ensure continuous wall coverage
+    obstacle_ys = np.concatenate([
+        np.linspace(0.2, gap_start, 8),  # Increased from 4 to 8 obstacles
+        np.linspace(gap_end, 2.3, 8)     # Increased from 4 to 8 obstacles
+    ])
     
     ini_x_obstacles = [np.array([wall_x, y]) for y in obstacle_ys]
     ini_v_obstacles = [np.zeros(2) for _ in ini_x_obstacles]
@@ -198,12 +202,12 @@ def setup_hallway_scenario():
     bottom_wall_y = 0.7
     top_wall_y = 1.7
     
-    # Create bottom wall (horizontal line of obstacles)
-    bottom_wall_xs = np.linspace(0.1, 2.4, 10)  # 10 obstacles along bottom
+    # Create bottom wall (horizontal line of obstacles) - increased density
+    bottom_wall_xs = np.linspace(0.1, 2.4, 15)  # Increased from 10 to 15 obstacles
     bottom_wall_positions = [np.array([x, bottom_wall_y]) for x in bottom_wall_xs]
     
-    # Create top wall (horizontal line of obstacles)
-    top_wall_xs = np.linspace(0.1, 2.4, 10)  # 10 obstacles along top
+    # Create top wall (horizontal line of obstacles) - increased density
+    top_wall_xs = np.linspace(0.1, 2.4, 15)  # Increased from 10 to 15 obstacles
     top_wall_positions = [np.array([x, top_wall_y]) for x in top_wall_xs]
     
     # Combine all wall positions
@@ -228,25 +232,25 @@ def setup_intersection_scenario():
     # Wall positions - only the edges defining the corridors
     walls = []
     
-    # Horizontal corridor walls (left-right passage)
+    # Horizontal corridor walls (left-right passage) - increased density
     # Bottom wall of horizontal corridor
-    for x in np.linspace(0.1, 2.4, 12):
+    for x in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
         y = corridor_center - corridor_half_width
         walls.append(np.array([x, y]))
     
     # Top wall of horizontal corridor  
-    for x in np.linspace(0.1, 2.4, 12):
+    for x in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
         y = corridor_center + corridor_half_width
         walls.append(np.array([x, y]))
     
-    # Vertical corridor walls (bottom-top passage)
+    # Vertical corridor walls (bottom-top passage) - increased density
     # Left wall of vertical corridor
-    for y in np.linspace(0.1, 2.4, 12):
+    for y in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
         x = corridor_center - corridor_half_width
         walls.append(np.array([x, y]))
     
     # Right wall of vertical corridor
-    for y in np.linspace(0.1, 2.4, 12):
+    for y in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
         x = corridor_center + corridor_half_width
         walls.append(np.array([x, y]))
     
@@ -297,6 +301,10 @@ def main():
         min_radius = get_input("Enter minimum distance between drones", 0.08, float)
     else:
         min_radius = get_input("Enter minimum distance between drones", 0.1, float)
+    
+    # Add configurable wall collision distance
+    wall_collision_multiplier = get_input("Enter wall collision distance multiplier (1.5-3.0 recommended)", 2.0, float)
+    
     epsilon = get_input("Enter epsilon value", 0.1, float)
     step_size = get_input("Enter step size", 0.1, float)
     k_value = get_input("Enter k value", 10, int)
@@ -460,7 +468,7 @@ def main():
     num_drones = len(ini_x)
     
     print("\nStarting simulation...")
-    result, agent_list, completion_step = PLAN(num_drones, ini_x, ini_v, target, min_radius, epsilon, step_size, k_value, max_steps, num_moving_drones=num_moving_drones)
+    result, agent_list, completion_step = PLAN(num_drones, ini_x, ini_v, target, min_radius, epsilon, step_size, k_value, max_steps, num_moving_drones=num_moving_drones, wall_collision_multiplier=wall_collision_multiplier)
     
     # Save completion step for Flow Rate calculation
     with open("completion_step.txt", "w") as f:

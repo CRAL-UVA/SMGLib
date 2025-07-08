@@ -5,7 +5,7 @@ from uav import *
 
 
 
-def GET_cons(agent,obstacle_list):
+def GET_cons(agent,obstacle_list, wall_collision_multiplier=2.0):
     
     P=agent.pre_traj 
     target=agent.target 
@@ -36,10 +36,24 @@ def GET_cons(agent,obstacle_list):
             else:
                 p_j=P_j[t]
 
-            if(t==len(P)-1):
-                a,b,rho = MBVC_WB(p,p_j,target,r_min,eta,term_overlap)
+            # Determine if this is a collision with a stationary robot (wall)
+            # Stationary robots have zero velocity and their position doesn't change
+            is_stationary_robot = False
+            if len(P_j) > 1:
+                # Check if the robot's position is constant (indicating it's stationary)
+                position_variance = np.var(P_j, axis=0)
+                is_stationary_robot = np.all(position_variance < 1e-6)  # Very small variance indicates stationary
+            
+            # Use larger collision distance for stationary robots (walls)
+            if is_stationary_robot:
+                effective_r_min = r_min * wall_collision_multiplier  # Use configurable multiplier for walls
             else:
-                a,b = MBVC(p,p_j,r_min)
+                effective_r_min = r_min
+
+            if(t==len(P)-1):
+                a,b,rho = MBVC_WB(p,p_j,target,effective_r_min,eta,term_overlap)
+            else:
+                a,b = MBVC(p,p_j,effective_r_min)
             
             # add constraints 
             cons_a=[]

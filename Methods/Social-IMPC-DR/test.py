@@ -23,11 +23,11 @@ def initialize():
 
     return agent_list
 
-def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones=None):
+def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones=None, wall_collision_multiplier=2.0):
 
     # os.sched_setaffinity(0,[0,1,2,3,4,5,6,7])
     
-    SET.initialize_set(Num, ini_x, ini_v, target,r_min,epsilon,h,K,episodes)
+    SET.initialize_set(Num, ini_x, ini_v, target,r_min,epsilon,h,K,episodes, wall_collision_multiplier)
 
     obj = {}
 
@@ -62,6 +62,9 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
 
     # Track whether each robot has reached its target
     target_reached = [False] * num_moving_drones  # Initialize to False for all robots
+    
+    # Track individual completion times for each robot
+    individual_completion_times = [episodes] * num_moving_drones  # Default to full episodes
     
     # Track when all robots reach their goals for make-span calculation
     all_goals_reached = False
@@ -101,6 +104,7 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
                     # Use a strict threshold - robots must be very close to target
                     if distance_to_target < 0.02:  # 0.02 units threshold (very strict)
                         target_reached[j] = True
+                        individual_completion_times[j] = i  # Record the exact step when goal was reached
                         print(f"Robot {j} reached goal at step {i}, distance: {distance_to_target:.4f}, position: {agent.p}, target: {target[j]}")
                     
                     # Debug: Show progress for robots that are getting closer
@@ -177,25 +181,29 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
     else:
         print(f"All robots reached goals at step {completion_step} out of {episodes} total steps")
     
+    # Report completion statistics
+    successful_robots = sum(target_reached[:num_moving_drones])
+    print(f"\nCompletion Statistics:")
+    print(f"  - Total moving robots: {num_moving_drones}")
+    print(f"  - Robots that reached goals: {successful_robots}")
+    print(f"  - Success rate: {(successful_robots/num_moving_drones)*100:.1f}%")
+    
+    if successful_robots > 0:
+        successful_times = [individual_completion_times[i] for i in range(num_moving_drones) if target_reached[i]]
+        print(f"  - Fastest completion time: {min(successful_times)} steps")
+        print(f"  - Slowest completion time: {max(successful_times)} steps")
+        print(f"  - Average completion time: {sum(successful_times)/len(successful_times):.1f} steps")
+    
     # Save TTG (time-to-goal) for each moving agent
     ttg_list = []
     for robot_id in range(num_moving_drones):
-        # Find the step at which the agent reached its goal
-        if target_reached[robot_id]:
-            # Find the first step where the agent reached the goal
-            for step in range(1, episodes+1):
-                # Reconstruct the logic: if the agent was marked as reached at this step
-                # Since we only set target_reached[robot_id] = True and never unset, use the step when it was set
-                # But since we don't store the step, fallback to completion_step if all reached at the same time
-                # (This is a limitation, but matches the current code's behavior)
-                ttg = completion_step
-                break
-        else:
-            ttg = episodes
-        ttg_list.append([robot_id, ttg])
+        # Use the individual completion time for each robot
+        ttg = individual_completion_times[robot_id]
+        reached_goal = target_reached[robot_id]
+        ttg_list.append([robot_id, ttg, reached_goal])
     with open("ttg_impc_dr.csv", mode="w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["robot_id", "ttg"])
+        writer.writerow(["robot_id", "ttg", "reached_goal"])  # Added reached_goal column
         writer.writerows(ttg_list)
     print("TTG CSV file saved.")
     

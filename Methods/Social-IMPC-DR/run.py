@@ -76,9 +76,11 @@ def run_one_agent(items):
 
     agent.change_target(SET.target[agent.index])
     
-    # get avoidance constraints
+    # get avoidance constraints with wall collision multiplier
+    # Use a default value of 2.0 if not specified in SET
+    wall_collision_multiplier = getattr(SET, 'wall_collision_multiplier', 2.0)
     [agent.cons_A,agent.cons_b,agent.cons_C,agent.rho]=\
-        GET_cons(agent,obstacle_list)
+        GET_cons(agent,obstacle_list, wall_collision_multiplier)
     
     # running convex program
     agent.cache=run_cvxp(agent)

@@ -907,13 +907,46 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
     ttg_file = os.path.join(impc_dir, "ttg_impc_dr.csv")
     if os.path.exists(ttg_file):
         ttg_df = pd.read_csv(ttg_file)
-        fastest_ttg = ttg_df['ttg'].min()
-        print("*" * 65)
-        print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
-        for idx, row in ttg_df.iterrows():
-            mr = row['ttg'] / fastest_ttg if fastest_ttg > 0 else float('inf')
-            print(f"Robot {int(row['robot_id'])}: TTG = {row['ttg']}, MR = {mr:.4f}")
-        print("*" * 65)
+        
+        # Check if the CSV has the new format with reached_goal column
+        if 'reached_goal' in ttg_df.columns:
+            # Use the reached_goal column to filter successful robots
+            successful_robots = ttg_df[ttg_df['reached_goal'] == True]
+        else:
+            # Fallback to old format - filter out robots that didn't reach their goals (TTG = max_steps)
+            successful_robots = ttg_df[ttg_df['ttg'] < ttg_df['ttg'].max()]
+        
+        if len(successful_robots) > 0:
+            # Calculate makespan ratio only for successful robots
+            fastest_ttg = successful_robots['ttg'].min()
+            print("*" * 65)
+            print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
+            print(f"Note: Only robots that reached their goals are included in makespan ratio calculation")
+            print(f"Fastest robot TTG: {fastest_ttg}")
+            
+            for idx, row in ttg_df.iterrows():
+                robot_id = int(row['robot_id'])
+                ttg = row['ttg']
+                
+                # Check if robot reached goal
+                if 'reached_goal' in ttg_df.columns:
+                    reached_goal = row['reached_goal']
+                else:
+                    # Fallback: assume robot reached goal if TTG is not the maximum
+                    reached_goal = (ttg < ttg_df['ttg'].max())
+                
+                if reached_goal:
+                    # Robot reached goal - calculate makespan ratio
+                    mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')
+                    print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f} ✓ (reached goal)")
+                else:
+                    # Robot didn't reach goal
+                    print(f"Robot {robot_id}: TTG = {ttg}, MR = N/A ✗ (did not reach goal)")
+            print("*" * 65)
+        else:
+            print("*" * 65)
+            print("Makespan Ratios: Cannot compute - no robots reached their goals")
+            print("*" * 65)
     else:
         print("*" * 65)
         print("Warning: TTG file not found, cannot compute Makespan Ratios.")
