@@ -1,4 +1,0 @@
-_cvxcore
-_cvxpy_sparsecholesky
-cvxpy
-setup

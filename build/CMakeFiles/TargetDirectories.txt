@@ -1,5 +1,0 @@
-C:/Users/danno/Downloads/SMGLib-master/build/CMakeFiles/ma_navigation_lib.dir
-C:/Users/danno/Downloads/SMGLib-master/build/CMakeFiles/single_test.dir
-C:/Users/danno/Downloads/SMGLib-master/build/CMakeFiles/series_test.dir
-C:/Users/danno/Downloads/SMGLib-master/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/danno/Downloads/SMGLib-master/build/CMakeFiles/ZERO_CHECK.dir

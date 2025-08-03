@@ -283,7 +283,7 @@ def run_social_orca(config_file, num_robots):
     base_dir = Path(__file__).parent
     
     # Change to Social-ORCA directory
-    orca_dir = base_dir / "Methods/Social-ORCA"
+    orca_dir = base_dir / "src/methods/Social-ORCA"
     os.chdir(orca_dir)
     
     # Use the provided config file
@@ -591,7 +591,7 @@ def run_social_impc_dr(env_type='doorway'):
     print("\nRunning Social-IMPC-DR simulation...")
     
     # Create IMPC-DR-specific working directory
-    impc_dir = Path("Methods/Social-IMPC-DR").resolve()  # Get absolute path
+    impc_dir = Path("src/methods/Social-IMPC-DR").resolve()  # Get absolute path
     original_dir = os.getcwd()
     
     print(f"IMPC-DR directory: {impc_dir}")
@@ -1089,7 +1089,7 @@ def generate_config(env_type, num_robots, robot_positions):
     
     # Create XML tree and save to file
     tree = ET.ElementTree(root)
-    configs_dir = Path(__file__).parent / "Methods/Social-ORCA/configs"
+    configs_dir = Path(__file__).parent / "src/methods/Social-ORCA/configs"
     configs_dir.mkdir(parents=True, exist_ok=True)
     config_filename = configs_dir / f'config_{env_type}_{num_robots}_robots.xml'
     
@@ -1112,7 +1112,7 @@ def run_social_cadrl():
         print(f"Warning: Could not apply NumPy compatibility fix: {e}")
     
     # Create CADRL-specific working directory
-    cadrl_dir = Path("Methods/Social-CADRL").resolve()  # Get absolute path
+    cadrl_dir = Path("src/methods/Social-CADRL").resolve()  # Get absolute path
     original_dir = os.getcwd()
     
     print(f"CADRL directory: {cadrl_dir}")
