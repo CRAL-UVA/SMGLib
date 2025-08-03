@@ -586,7 +586,7 @@ def run_social_orca(config_file, num_robots):
         print(f"Error processing trajectories: {e}")
         return
 
-def run_social_impc_dr(env_type='doorway'):
+def run_social_impc_dr(env_type='doorway', robot_configs=None):
     """Run Social-IMPC-DR by switching to its directory and calling app2.py."""
     print("\nRunning Social-IMPC-DR simulation...")
     
@@ -656,6 +656,14 @@ def run_social_impc_dr(env_type='doorway'):
                 import sys
                 original_argv = sys.argv.copy()
                 sys.argv = ['app2.py', env_type]
+                
+                # Pass robot_configs to app2.py if provided
+                if robot_configs:
+                    # Convert robot_configs to a JSON string and pass it as an argument
+                    import json
+                    robot_configs_json = json.dumps(robot_configs)
+                    sys.argv.append(f"--robot_configs={robot_configs_json}")
+                    print(f"Passed robot configs: {robot_configs_json}")
                 
                 try:
                     # Call the main function if it exists, otherwise run the script
@@ -1264,6 +1272,202 @@ def setup_cadrl_environment(cadrl_dir):
         print(f"Error setting up CADRL environment: {e}")
         return False
 
+def setup_environment_interactive():
+    """
+    Unified user selector for environment and robot setup for Social-ORCA.
+    Prompts for environment, number of robots, and robot parameters.
+    Returns (env_type, robot_configs)
+    """
+    print("\n=== Environment Setup ===")
+    env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+    notes = {
+        'doorway': (
+            "Doorway Configuration:\n"
+            "- The doorway has walls at x=30-31 with a gap at y=30-34\n"
+            "- Y coordinates should be between 0 and 63\n"
+            "- X coordinates should be between 0 and 63\n"
+        ),
+        'hallway': (
+            "Hallway Configuration:\n"
+            "- The hallway has walls at y=31-32 and y=35-36\n"
+            "- Robots should stay at y=33.5 (middle of hallway)\n"
+            "- X coordinates should be between 0 and 63\n"
+        ),
+        'intersection': (
+            "Intersection Configuration:\n"
+            "- The intersection has 8 obstacles forming corridors on all four sides\n"
+            "- Central open area: x=26-38, y=26-38\n"
+            "- North corridor: y=0-25 (use y=12.5 for north approach)\n"
+            "- South corridor: y=39-64 (use y=51.5 for south approach)\n"
+            "- East corridor: x=39-64 (use x=51.5 for east approach)\n"
+            "- West corridor: x=0-25 (use x=12.5 for west approach)\n"
+            "- X and Y coordinates should be between 0 and 63\n"
+        )
+    }
+    while True:
+        print("\nSelect environment type:")
+        for k, v in env_types.items():
+            print(f"{k}. {v}")
+        try:
+            env_choice = int(input("Enter environment type (1-3): "))
+            if env_choice in env_types:
+                break
+            print("Invalid choice! Please enter 1, 2, or 3.")
+        except ValueError:
+            print("Invalid input! Please enter a number.")
+    env_type = env_types[env_choice]
+    print(f"\n{notes[env_type]}")
+
+    # Number of robots
+    while True:
+        try:
+            num_robots = int(input("Enter number of robots (1-4): "))
+            if 1 <= num_robots <= 4:
+                break
+            print("Invalid number! Please enter a number between 1 and 4.")
+        except ValueError:
+            print("Invalid input! Please enter a number.")
+
+    # Robot configs
+    robot_configs = []
+    for i in range(num_robots):
+        print(f"\nRobot {i+1} configuration:")
+        # Start position
+        while True:
+            try:
+                start_x = float(input("  Start X (0-63): "))
+                if env_type == 'hallway':
+                    start_y = 33.5
+                    print("  Start Y fixed at 33.5 for hallway.")
+                else:
+                    start_y = float(input("  Start Y (0-63): "))
+                if 0 <= start_x <= 63 and 0 <= start_y <= 63:
+                    break
+                print("  Invalid position! Please enter values between 0 and 63.")
+            except ValueError:
+                print("  Invalid input! Please enter a number.")
+        # Goal position
+        while True:
+            try:
+                goal_x = float(input("  Goal X (0-63): "))
+                if env_type == 'hallway':
+                    goal_y = 33.5
+                    print("  Goal Y fixed at 33.5 for hallway.")
+                else:
+                    goal_y = float(input("  Goal Y (0-63): "))
+                if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
+                    break
+                print("  Invalid position! Please enter values between 0 and 63.")
+            except ValueError:
+                print("  Invalid input! Please enter a number.")
+        # Optional parameters
+        def get_optional(prompt, default, cast=float):
+            val = input(f"  {prompt} (default {default}): ")
+            if val.strip() == '':
+                return default
+            try:
+                return cast(val)
+            except ValueError:
+                print(f"  Invalid input! Using default {default}.")
+                return default
+        radius = get_optional("Radius", 0.5)
+        pref_speed = get_optional("Preferred speed", 1.0)
+        heading = get_optional("Heading", 0.0)
+        robot_configs.append({
+            'start_x': start_x,
+            'start_y': start_y,
+            'goal_x': goal_x,
+            'goal_y': goal_y,
+            'radius': radius,
+            'pref_speed': pref_speed,
+            'heading': heading
+        })
+    return env_type, robot_configs
+
+def setup_impc_environment_interactive():
+    """
+    Unified user selector for environment and robot setup for Social-IMPC-DR.
+    Prompts for environment, number of robots, and robot parameters.
+    Returns (env_type, robot_configs)
+    """
+    print("\n=== Environment Setup ===")
+    env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+    notes = {
+        'doorway': (
+            "Doorway (IMPC-DR) Configuration:\n"
+            "- Physical area: x in [0, 2.5], y in [0, 2.5]\n"
+            "- Doorway is a gap in a wall at x ≈ 1.25, y in [0.7, 1.7]\n"
+            "- Drones should start and end within [0, 2.5] for both x and y\n"
+        ),
+        'hallway': (
+            "Hallway (IMPC-DR) Configuration:\n"
+            "- Physical area: x in [0, 2.5], y in [0, 2.5]\n"
+            "- Hallway is a corridor at y ≈ 1.2, width ≈ 1.0 (y in [0.7, 1.7])\n"
+            "- Drones should start and end within [0, 2.5] for both x and y\n"
+        ),
+        'intersection': (
+            "Intersection (IMPC-DR) Configuration:\n"
+            "- Physical area: x in [0, 2.5], y in [0, 2.5]\n"
+            "- Corridors cross at x ≈ 1.25, y ≈ 1.25\n"
+            "- Drones should start and end within [0, 2.5] for both x and y\n"
+        )
+    }
+    while True:
+        print("\nSelect environment type:")
+        for k, v in env_types.items():
+            print(f"{k}. {v}")
+        try:
+            env_choice = int(input("Enter environment type (1-3): "))
+            if env_choice in env_types:
+                break
+            print("Invalid choice! Please enter 1, 2, or 3.")
+        except ValueError:
+            print("Invalid input! Please enter a number.")
+    env_type = env_types[env_choice]
+    print(f"\n{notes[env_type]}")
+
+    # Number of robots
+    while True:
+        try:
+            num_robots = int(input("Enter number of robots (1-4): "))
+            if 1 <= num_robots <= 4:
+                break
+            print("Invalid number! Please enter a number between 1 and 4.")
+        except ValueError:
+            print("Invalid input! Please enter a number.")
+
+    # Robot configs
+    robot_configs = []
+    for i in range(num_robots):
+        print(f"\nRobot {i+1} configuration:")
+        # Start position
+        while True:
+            try:
+                start_x = float(input("  Start X (0-2.5): "))
+                start_y = float(input("  Start Y (0-2.5): "))
+                if 0 <= start_x <= 2.5 and 0 <= start_y <= 2.5:
+                    break
+                print("  Invalid position! Please enter values between 0 and 2.5.")
+            except ValueError:
+                print("  Invalid input! Please enter a number.")
+        # Goal position
+        while True:
+            try:
+                goal_x = float(input("  Goal X (0-2.5): "))
+                goal_y = float(input("  Goal Y (0-2.5): "))
+                if 0 <= goal_x <= 2.5 and 0 <= goal_y <= 2.5:
+                    break
+                print("  Invalid position! Please enter values between 0 and 2.5.")
+            except ValueError:
+                print("  Invalid input! Please enter a number.")
+        robot_configs.append({
+            'start_x': start_x,
+            'start_y': start_y,
+            'goal_x': goal_x,
+            'goal_y': goal_y
+        })
+    return env_type, robot_configs
+
 def main():
     print("Welcome to the Multi-Agent Navigation Simulator")
     print("=============================================")
@@ -1271,7 +1475,7 @@ def main():
     print("1. Social-ORCA")
     print("2. Social-IMPC-DR")
     print("3. Social-CADRL")
-    
+            
     while True:
         try:
             choice = int(input("\nEnter method number (1-3): "))
@@ -1280,130 +1484,21 @@ def main():
             print("Invalid choice! Please enter 1, 2, or 3.")
         except ValueError:
             print("Invalid input! Please enter a number.")
-    
+            
     # Store the original directory
     original_dir = os.getcwd()
     
     try:
         if choice == 1:
-            # Ask for environment type
-            print("\nAvailable environments:")
-            print("1. doorway")
-            print("2. hallway")
-            print("3. intersection")
-            
-            while True:
-                try:
-                    env_choice = int(input("\nEnter environment type (1-3): "))
-                    if env_choice in [1, 2, 3]:
-                        break
-                    print("Invalid choice! Please enter 1, 2, or 3.")
-                except ValueError:
-                    print("Invalid input! Please enter a number.")
-            
-            env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
-            env_type = env_types[env_choice]
-            
-            # Ask for number of robots
-            while True:
-                try:
-                    num_robots = int(input("\nEnter number of robots (1-4): "))
-                    if 0 < num_robots <= 4:
-                        break
-                    print("Invalid number! Please enter a number between 1 and 4.")
-                except ValueError:
-                    print("Invalid input! Please enter a number.")
-            
-            # Print environment-specific instructions
-            if env_type == 'hallway':
-                print("\nHallway Configuration:")
-                print("- The hallway has walls at y=31-32 and y=35-36")
-                print("- Robots should stay at y=33.5 (middle of hallway)")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'doorway':
-                print("\nDoorway Configuration:")
-                print("- The doorway has walls at x=30-31 with a gap at y=30-34")
-                print("- Y coordinates should be between 0 and 63")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'intersection':
-                print("\nIntersection Configuration:")
-                print("- The intersection has 8 obstacles forming corridors on all four sides")
-                print("- Central open area: x=26-38, y=26-38")
-                print("- North corridor: y=0-25 (use y=12.5 for north approach)")
-                print("- South corridor: y=39-64 (use y=51.5 for south approach)")
-                print("- East corridor: x=39-64 (use x=51.5 for east approach)")
-                print("- West corridor: x=0-25 (use x=12.5 for west approach)")
-                print("- X and Y coordinates should be between 0 and 63")
-            
-            # Get robot positions
-            robot_positions = []
-            for i in range(num_robots):
-                print(f"\nRobot {i+1} configuration:")
-                
-                # Get start position
-                while True:
-                    try:
-                        if env_type == 'hallway':
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= start_x <= 63 and 0 <= start_y <= 63:
-                            break
-                        print("Invalid position! Please enter values between 0 and 63.")
-                    except ValueError:
-                        print("Invalid input! Please enter a number.")
-                
-                # Get goal position
-                while True:
-                    try:
-                        if env_type == 'hallway':
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
-                            break
-                        print("Invalid position! Please enter values between 0 and 63.")
-                    except ValueError:
-                        print("Invalid input! Please enter a number.")
-                
-                robot_positions.append({
-                    'start_x': start_x,
-                    'start_y': start_y,
-                    'goal_x': goal_x,
-                    'goal_y': goal_y
-                })
-            
-            # Generate configuration file
-            config_file = generate_config(env_type, num_robots, robot_positions)
-            
-            # Run the simulation
+            # Unified environment and robot setup for Social-ORCA
+            env_type, robot_configs = setup_environment_interactive()
+            num_robots = len(robot_configs)
+            config_file = generate_config(env_type, num_robots, robot_configs)
             run_social_orca(config_file, num_robots)
         elif choice == 2:
-            # Ask for environment type for IMPC-DR
-            print("\nAvailable environments:")
-            print("1. doorway")
-            print("2. hallway")
-            print("3. intersection")
-            
-            while True:
-                try:
-                    env_choice = int(input("\nEnter environment type (1-3): "))
-                    if env_choice in [1, 2, 3]:
-                        break
-                    print("Invalid choice! Please enter 1, 2, or 3.")
-                except ValueError:
-                    print("Invalid input! Please enter a number.")
-            
-            env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
-            env_type = env_types[env_choice]
-            
-            run_social_impc_dr(env_type)
+            # Unified environment and robot setup for Social-IMPC-DR
+            env_type, robot_configs = setup_impc_environment_interactive()
+            run_social_impc_dr(env_type, robot_configs)
         else:  # choice == 3, Social-CADRL
             print("\nStarting Social-CADRL...")
             print("The CADRL simulation will prompt you for environment and agent configuration.")

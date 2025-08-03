@@ -21,6 +21,7 @@ import pandas as pd
 import csv
 import os
 from pathlib import Path
+import time # Added for timestamp in animation filename
 
 # Disable observation space checking
 gym.logger.set_level(40)
@@ -604,6 +605,108 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     # Save trajectory data for further analysis
     output_dir = Path("logs/cadrl_evaluation")
     save_cadrl_trajectory_data(agent_tracking_data, output_dir, time_step)
+    
+    # Generate animation
+    print("\nGenerating animation...")
+    try:
+        import matplotlib.pyplot as plt
+        import matplotlib.animation as animation
+        import matplotlib.lines as mlines
+        
+        # Create figure and axis
+        fig, ax = plt.subplots(figsize=(10, 8))
+        
+        # Set plot limits based on scenario
+        if scenario_type == 'intersection':
+            ax.set_xlim(-8, 8)
+            ax.set_ylim(-8, 8)
+        elif scenario_type == 'hallway':
+            ax.set_xlim(-6, 6)
+            ax.set_ylim(-3, 3)
+        elif scenario_type == 'doorway':
+            ax.set_xlim(-10, 10)
+            ax.set_ylim(-10, 10)
+        
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+        ax.set_title(f'CADRL {scenario_type.title()} Scenario', fontsize=14)
+        ax.set_xlabel('X Position')
+        ax.set_ylabel('Y Position')
+        
+        # Create scatter plots
+        agent_scatter = ax.scatter([], [], c='blue', s=100, label='Moving Agents', zorder=3)
+        obstacle_scatter = ax.scatter([], [], c='gray', s=80, label='Static Obstacles', zorder=2)
+        goal_scatters = []
+        
+        # Plot goal positions as green stars
+        for agent in dynamic_agents:
+            goal = agent.goal_global_frame
+            ax.plot(goal[0], goal[1], 'g*', markersize=12, label='Goal' if agent == dynamic_agents[0] else "")
+        
+        # Create legend
+        ax.legend(loc='upper right')
+        
+        # Animation update function
+        def update(frame):
+            if frame < len(positions_history):
+                agent_positions = []
+                obstacle_positions = []
+                
+                for i, agent in enumerate(agents):
+                    pos = positions_history[frame][i]
+                    # Check if this is a static obstacle (start == goal)
+                    is_obstacle = np.allclose(agent.pos_global_frame, agent.goal_global_frame)
+                    if is_obstacle:
+                        obstacle_positions.append(pos)
+                    else:
+                        agent_positions.append(pos)
+                
+                # Update scatter plots
+                if agent_positions:
+                    agent_scatter.set_offsets(np.array(agent_positions).reshape(-1, 2))
+                else:
+                    agent_scatter.set_offsets(np.empty((0, 2)))
+                
+                if obstacle_positions:
+                    obstacle_scatter.set_offsets(np.array(obstacle_positions).reshape(-1, 2))
+                else:
+                    obstacle_scatter.set_offsets(np.empty((0, 2)))
+                
+                # Update title with frame info
+                ax.set_title(f'CADRL {scenario_type.title()} Scenario - Step {frame}/{len(positions_history)-1}', fontsize=12)
+                
+            return [agent_scatter, obstacle_scatter]
+        
+        # Create animation
+        anim = animation.FuncAnimation(fig, update, frames=len(positions_history), 
+                                     interval=100, blit=True, repeat=True)
+        
+        # Save animation
+        animations_dir = Path("../animations")
+        animations_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create unique filename
+        agent_count = len(dynamic_agents)
+        timestamp = int(time.time()) if 'time' in globals() else 0
+        filename = f"cadrl_{scenario_type}_{agent_count}agents_{timestamp}.gif"
+        
+        try:
+            anim.save(animations_dir / filename, writer='pillow', fps=10)
+            print(f"✓ Animation saved: {animations_dir / filename}")
+        except Exception as e:
+            print(f"⚠ Failed to save GIF: {e}")
+            # Try HTML as fallback
+            try:
+                html_filename = filename.replace('.gif', '.html')
+                anim.save(animations_dir / html_filename, writer='html')
+                print(f"✓ HTML animation saved: {animations_dir / html_filename}")
+            except Exception as e2:
+                print(f"⚠ Failed to save HTML animation: {e2}")
+        
+        plt.close()
+        
+    except Exception as e:
+        print(f"⚠ Failed to generate animation: {e}")
     
     return evaluation_results
 
