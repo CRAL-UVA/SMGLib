@@ -275,6 +275,75 @@ def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=N
     plt.close()
     return animations_dir / "robot_movement.gif"
 
+def build_social_orca():
+    """Build the Social-ORCA project if needed."""
+    base_dir = Path(__file__).parent
+    orca_dir = base_dir / "src/methods/Social-ORCA"
+    build_dir = orca_dir / "build"
+    executable = build_dir / "single_test"
+    
+    # Check if executable exists
+    if executable.exists():
+        return True
+    
+    print("\n" + "="*50)
+    print("FIRST-TIME SETUP: BUILDING SOCIAL-ORCA")
+    print("="*50)
+    print("The Social-ORCA executable needs to be compiled.")
+    print("This is a one-time setup process...")
+    
+    original_dir = os.getcwd()
+    try:
+        os.chdir(orca_dir)
+        
+        # Create build directory
+        build_dir.mkdir(exist_ok=True)
+        
+        # Check if we have make available
+        try:
+            result = subprocess.run(["which", "make"], capture_output=True, text=True)
+            if result.returncode != 0:
+                print("✗ Error: 'make' command not found!")
+                print("Please install build tools and try again.")
+                return False
+        except Exception:
+            print("✗ Error: Could not check for build tools!")
+            return False
+        
+        # Check if we have g++ available
+        try:
+            result = subprocess.run(["which", "g++"], capture_output=True, text=True)
+            if result.returncode != 0:
+                print("✗ Error: 'g++' compiler not found!")
+                print("Please install a C++ compiler and try again.")
+                return False
+        except Exception:
+            print("✗ Error: Could not check for C++ compiler!")
+            return False
+        
+        print("✓ Build tools found")
+        print("✓ Starting compilation...")
+        
+        # Run make
+        result = subprocess.run(["make"], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print("✓ Social-ORCA compiled successfully!")
+            print("="*50)
+            return True
+        else:
+            print("✗ Compilation failed!")
+            print(f"Error output: {result.stderr}")
+            print("="*50)
+            return False
+            
+    except Exception as e:
+        print(f"✗ Error during build process: {e}")
+        print("="*50)
+        return False
+    finally:
+        os.chdir(original_dir)
+
 def run_social_orca(config_file, num_robots):
     print("\nRunning Social-ORCA Simulation")
     print("=============================")
@@ -285,6 +354,11 @@ def run_social_orca(config_file, num_robots):
     # Change to Social-ORCA directory
     orca_dir = base_dir / "src/methods/Social-ORCA"
     os.chdir(orca_dir)
+    
+    # Build the project if needed
+    if not build_social_orca():
+        print("✗ Failed to build Social-ORCA. Cannot run simulation.")
+        return
     
     # Use the provided config file
     config_path = config_file
@@ -301,14 +375,24 @@ def run_social_orca(config_file, num_robots):
     cmd = f"./build/single_test {config_path} {num_robots}"
     subprocess.run(cmd, shell=True)
     
-    # Get the most recent log file
-    log_files = sorted(Path("logs").glob("*_log.xml"), key=os.path.getctime)
-    if not log_files:
-        print("\nNo log file was generated!")
-        return
+    # Generate expected log file name based on config file
+    config_name = Path(config_path).stem  # e.g., "config_doorway_2_robots"
+    expected_log_name = f"{config_name}_{num_robots}_log.xml"
+    expected_log_path = Path("logs") / expected_log_name
     
-    latest_log = log_files[-1]
-    print(f"\nLog file generated: {latest_log}")
+    # Check if the expected log file exists
+    if expected_log_path.exists():
+        latest_log = expected_log_path
+        print(f"\nLog file generated: {latest_log}")
+    else:
+        # Fallback to most recent log file
+        log_files = sorted(Path("logs").glob("*_log.xml"), key=os.path.getctime)
+        if not log_files:
+            print("\nNo log file was generated!")
+            return
+        latest_log = log_files[-1]
+        print(f"\nLog file generated: {latest_log} (using most recent)")
+        print(f"Warning: Expected log file {expected_log_name} not found")
     
     # Generate CSV files in a new 'trajectories' directory
     output_dir = latest_log.parent / "trajectories"
