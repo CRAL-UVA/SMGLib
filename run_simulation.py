@@ -670,7 +670,7 @@ def run_social_orca(config_file, num_robots):
         print(f"Error processing trajectories: {e}")
         return
 
-def run_social_impc_dr(env_type='doorway'):
+def run_social_impc_dr(env_type='doorway', verbose=False):
     """Run Social-IMPC-DR by switching to its directory and calling app2.py."""
     print("\nRunning Social-IMPC-DR simulation...")
     
@@ -735,11 +735,11 @@ def run_social_impc_dr(env_type='doorway'):
                 import app2
                 print("✓ Successfully imported app2")
                 
-                # Call the main function from app2 with environment type
-                # We need to pass the environment type as a command line argument
+                # Call the main function from app2 with environment type and verbose mode
+                # We need to pass the environment type and verbose mode as command line arguments
                 import sys
                 original_argv = sys.argv.copy()
-                sys.argv = ['app2.py', env_type]
+                sys.argv = ['app2.py', env_type, '--verbose' if verbose else '--clean']
                 
                 try:
                     # Call the main function if it exists, otherwise run the script
@@ -761,8 +761,23 @@ def run_social_impc_dr(env_type='doorway'):
                             print(f"✓ Found {len(path_deviation_files)} trajectory files")
                             
                             # Evaluate trajectories and velocities
-                            evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
-                            evaluate_impc_velocities(impc_dir)
+                            # Use the user-selected verbose mode
+                            
+                            trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
+                            velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                            
+                            # Display clean metrics if not in verbose mode
+                            if not verbose and trajectory_results:
+                                display_clean_impc_metrics(
+                                    trajectory_results['trajectory_metrics'],
+                                    velocity_metrics,
+                                    trajectory_results['ttg_metrics'],
+                                    trajectory_results['flow_rate'],
+                                    trajectory_results['makespan'],
+                                    trajectory_results['success_rate'],
+                                    trajectory_results['environment'],
+                                    trajectory_results['num_agents']
+                                )
                         else:
                             print("⚠ No trajectory files found")
                     else:
@@ -778,7 +793,8 @@ def run_social_impc_dr(env_type='doorway'):
                 
                 # Alternative: execute the script file directly with subprocess
                 print(f"Executing script directly: {script_path}")
-                result = subprocess.run([get_venv_python(), "app2.py", env_type], 
+                verbose_arg = '--verbose' if verbose else '--clean'
+                result = subprocess.run([get_venv_python(), "app2.py", env_type, verbose_arg], 
                                       cwd=impc_dir, capture_output=True, text=True)
                 
                 if result.returncode == 0:
@@ -791,8 +807,21 @@ def run_social_impc_dr(env_type='doorway'):
                         print(f"✓ Found {len(path_deviation_files)} trajectory files")
                         
                         # Evaluate trajectories and velocities
-                        evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files)
-                        evaluate_impc_velocities(impc_dir)
+                        trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
+                        velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                        
+                        # Display clean metrics if not in verbose mode
+                        if not verbose and trajectory_results:
+                            display_clean_impc_metrics(
+                                trajectory_results['trajectory_metrics'],
+                                velocity_metrics,
+                                trajectory_results['ttg_metrics'],
+                                trajectory_results['flow_rate'],
+                                trajectory_results['makespan'],
+                                trajectory_results['success_rate'],
+                                trajectory_results['environment'],
+                                trajectory_results['num_agents']
+                            )
                     else:
                         print("⚠ No trajectory files found")
                 else:
@@ -875,17 +904,20 @@ def setup_impc_environment(impc_dir):
         return False
 
 
-def evaluate_impc_velocities(impc_dir):
+def evaluate_impc_velocities(impc_dir, verbose=True):
     """Evaluate IMPC-DR velocities and calculate average delta velocity."""
-    print("\nEvaluating Social-IMPC-DR velocities:")
+    if verbose:
+        print("\nEvaluating Social-IMPC-DR velocities:")
     
     # Look for velocity CSV files
     velocity_files = list(impc_dir.glob("avg_delta_velocity_robot_*.csv"))
     
     if not velocity_files:
-        print("No velocity CSV files found")
-        return
+        if verbose:
+            print("No velocity CSV files found")
+        return {}
     
+    velocity_metrics = {}
     for velocity_file in velocity_files:
         robot_id = velocity_file.stem.split('_')[-1]
         data = pd.read_csv(velocity_file)
@@ -898,18 +930,27 @@ def evaluate_impc_velocities(impc_dir):
         abs_diffs = np.abs(diffs)
         sum_abs_diffs = np.sum(abs_diffs)
         
-        # Print the average delta velocity
-        print("*" * 65)
-        print(f"Avg delta velocity for robot {robot_id}: {sum_abs_diffs:.4f}")
-        print("*" * 65)
+        velocity_metrics[robot_id] = sum_abs_diffs
+        
+        if verbose:
+            # Print the average delta velocity
+            print("*" * 65)
+            print(f"Avg delta velocity for robot {robot_id}: {sum_abs_diffs:.4f}")
+            print("*" * 65)
+    
+    return velocity_metrics
 
-def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
+def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=True):
     """Evaluate IMPC-DR trajectories and calculate metrics."""
-    print("\nEvaluating Social-IMPC-DR trajectories:")
+    if verbose:
+        print("\nEvaluating Social-IMPC-DR trajectories:")
+    
     num_agents = len(path_deviation_files)
     max_steps = 0
+    trajectory_metrics = {}
     
     for path_deviation_file in path_deviation_files:
+        robot_id = path_deviation_file.stem.split('_')[-1]
         data = pd.read_csv(path_deviation_file)
         # Extract coordinates
         actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
@@ -921,11 +962,20 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
         actual_trajectory = np.column_stack((actual_x, actual_y))
         nominal_trajectory = np.column_stack((nominal_x, nominal_y))
         hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
-        print("*" * 65)
-        print(f"Robot {path_deviation_file.stem.split('_')[-1]} Path Deviation Metrics:")
-        print(f"L2 Norm: {l2_norm:.4f}")
-        print(f"Hausdorff distance: {hausdorff_dist:.4f}")
-        print("*" * 65)
+        
+        # Store metrics
+        trajectory_metrics[robot_id] = {
+            'l2_norm': l2_norm,
+            'hausdorff_dist': hausdorff_dist
+        }
+        
+        if verbose:
+            print("*" * 65)
+            print(f"Robot {robot_id} Path Deviation Metrics:")
+            print(f"L2 Norm: {l2_norm:.4f}")
+            print(f"Hausdorff distance: {hausdorff_dist:.4f}")
+            print("*" * 65)
+        
         # Track max steps for make-span
         if len(data) > max_steps:
             max_steps = len(data)
@@ -951,11 +1001,14 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
         try:
             with open(completion_step_file, 'r') as f:
                 actual_completion_steps = int(f.read().strip())
-            print(f"Using actual completion time: {actual_completion_steps} steps (goals reached)")
+            if verbose:
+                print(f"Using actual completion time: {actual_completion_steps} steps (goals reached)")
         except:
-            print(f"Could not read completion step file, using max steps: {max_steps}")
+            if verbose:
+                print(f"Could not read completion step file, using max steps: {max_steps}")
     else:
-        print(f"No completion step file found, using max steps: {max_steps}")
+        if verbose:
+            print(f"No completion step file found, using max steps: {max_steps}")
     
     make_span = actual_completion_steps * step_size
     
@@ -971,22 +1024,29 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
             effective_agents = num_agents  # Use all agents but note the limitation
         
         flow_rate = effective_agents / (gap_width * make_span)
-        print("*" * 65)
-        print(f"Social-IMPC-DR Flow Rate Calculation:")
-        print(f"Scenario: {flow_rate_type}")
-        print(f"Environment: {env_type}")
-        print(f"Number of agents: {num_agents}")
-        print(f"Gap width (z): {gap_width} normalized units")
-        print(f"Make-span (T): {make_span:.2f}s")
-        print(f"Completion step: {actual_completion_steps}/{max_steps}")
-        print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
-        print("*" * 65)
+        if verbose:
+            print("*" * 65)
+            print(f"Social-IMPC-DR Flow Rate Calculation:")
+            print(f"Scenario: {flow_rate_type}")
+            print(f"Environment: {env_type}")
+            print(f"Number of agents: {num_agents}")
+            print(f"Gap width (z): {gap_width} normalized units")
+            print(f"Make-span (T): {make_span:.2f}s")
+            print(f"Completion step: {actual_completion_steps}/{max_steps}")
+            print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
+            print("*" * 65)
     else:
-        print("*" * 65)
-        print("Flow Rate: Could not compute (invalid make-span or gap width)")
-        print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
-        print("*" * 65)
+        flow_rate = 0.0
+        if verbose:
+            print("*" * 65)
+            print("Flow Rate: Could not compute (invalid make-span or gap width)")
+            print(f"Make-span: {make_span:.2f}s, Gap width: {gap_width}")
+            print("*" * 65)
 
+    # Collect TTG and makespan ratio data
+    ttg_metrics = {}
+    success_rate = 0.0
+    
     # Makespan Ratio calculation
     ttg_file = os.path.join(impc_dir, "ttg_impc_dr.csv")
     if os.path.exists(ttg_file):
@@ -1000,16 +1060,22 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
             # Fallback to old format - filter out robots that didn't reach their goals (TTG = max_steps)
             successful_robots = ttg_df[ttg_df['ttg'] < ttg_df['ttg'].max()]
         
+        # Calculate success rate
+        total_robots = len(ttg_df)
+        successful_count = len(successful_robots)
+        success_rate = (successful_count / total_robots) * 100.0 if total_robots > 0 else 0.0
+        
         if len(successful_robots) > 0:
             # Calculate makespan ratio only for successful robots
             fastest_ttg = successful_robots['ttg'].min()
-            print("*" * 65)
-            print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
-            print(f"Note: Only robots that reached their goals are included in makespan ratio calculation")
-            print(f"Fastest robot TTG: {fastest_ttg}")
+            if verbose:
+                print("*" * 65)
+                print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
+                print(f"Note: Only robots that reached their goals are included in makespan ratio calculation")
+                print(f"Fastest robot TTG: {fastest_ttg}")
             
             for idx, row in ttg_df.iterrows():
-                robot_id = int(row['robot_id'])
+                robot_id = str(int(row['robot_id']))
                 ttg = row['ttg']
                 
                 # Check if robot reached goal
@@ -1022,19 +1088,66 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files):
                 if reached_goal:
                     # Robot reached goal - calculate makespan ratio
                     mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')
-                    print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f} ✓ (reached goal)")
+                    ttg_metrics[robot_id] = {'ttg': ttg, 'mr': mr, 'reached_goal': True}
+                    if verbose:
+                        print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f} ✓ (reached goal)")
                 else:
                     # Robot didn't reach goal
-                    print(f"Robot {robot_id}: TTG = {ttg}, MR = N/A ✗ (did not reach goal)")
-            print("*" * 65)
+                    ttg_metrics[robot_id] = {'ttg': ttg, 'mr': float('inf'), 'reached_goal': False}
+                    if verbose:
+                        print(f"Robot {robot_id}: TTG = {ttg}, MR = N/A ✗ (did not reach goal)")
+            if verbose:
+                print("*" * 65)
         else:
-            print("*" * 65)
-            print("Makespan Ratios: Cannot compute - no robots reached their goals")
-            print("*" * 65)
+            if verbose:
+                print("*" * 65)
+                print("Makespan Ratios: Cannot compute - no robots reached their goals")
+                print("*" * 65)
     else:
-        print("*" * 65)
-        print("Warning: TTG file not found, cannot compute Makespan Ratios.")
-        print("*" * 65)
+        if verbose:
+            print("*" * 65)
+            print("Warning: TTG file not found, cannot compute Makespan Ratios.")
+            print("*" * 65)
+    
+    # Return all collected metrics
+    return {
+        'trajectory_metrics': trajectory_metrics,
+        'ttg_metrics': ttg_metrics,
+        'flow_rate': flow_rate,
+        'makespan': make_span,
+        'success_rate': success_rate,
+        'environment': env_type,
+        'num_agents': num_agents,
+        'completion_steps': actual_completion_steps,
+        'max_steps': max_steps
+    }
+
+def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
+    """Display IMPC DR metrics in clean minimal format."""
+    print("\nSOCIAL-IMPC-DR RESULTS")
+    
+    # Calculate successful agents count
+    successful_count = sum(1 for robot_id in ttg_metrics if ttg_metrics[robot_id].get('reached_goal', False))
+    
+    print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
+    print()
+    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+    
+    # Get sorted robot IDs for consistent display
+    robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
+    
+    for robot_id in robot_ids:
+        # Get metrics for this robot
+        ttg = ttg_metrics.get(robot_id, {}).get('ttg', 0)
+        mr = ttg_metrics.get(robot_id, {}).get('mr', 0.0)
+        avg_delta_v = velocity_metrics.get(robot_id, 0.0)
+        path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+        hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+        
+        # Handle infinite MR (when robot didn't reach goal)
+        mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
+        
+        print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
@@ -1487,7 +1600,23 @@ def main():
             env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
             env_type = env_types[env_choice]
             
-            run_social_impc_dr(env_type)
+            # Ask for output format preference
+            print("\nOutput format options:")
+            print("1. Clean (minimal text output)")
+            print("2. Verbose (detailed output with explanations)")
+            
+            while True:
+                try:
+                    verbose_choice = int(input("\nEnter output format (1-2): "))
+                    if verbose_choice in [1, 2]:
+                        break
+                    print("Invalid choice! Please enter 1 or 2.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            verbose_mode = (verbose_choice == 2)
+            
+            run_social_impc_dr(env_type, verbose=verbose_mode)
         else:  # choice == 3, Social-CADRL
             print("\nStarting Social-CADRL...")
             print("The CADRL simulation will prompt you for environment and agent configuration.")
