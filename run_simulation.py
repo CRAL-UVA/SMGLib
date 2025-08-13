@@ -139,13 +139,14 @@ def generate_orca_csvs(log_file, output_dir):
     
     return velocity_csv
 
-def evaluate_velocities(velocity_csv):
+def evaluate_velocities(velocity_csv, verbose=True):
     """Evaluate the velocities using the evaluate module."""
     # Read the velocity CSV
     data = pd.read_csv(velocity_csv)
     
     # Process each robot's velocities
     robot_ids = []
+    velocity_metrics = {}
     for col in data.columns:
         if col.endswith('_vx'):
             robot_id = col.split('_')[1]
@@ -164,12 +165,15 @@ def evaluate_velocities(velocity_csv):
         abs_diffs = np.abs(diffs)
         sum_abs_diffs = np.sum(abs_diffs)
         
-        # Print the average delta velocity
-        print("*" * 65)
-        print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")
-        print("*" * 65)
+        velocity_metrics[robot_id] = sum_abs_diffs
+        
+        if verbose:
+            # Print the average delta velocity
+            print("*" * 65)
+            print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")
+            print("*" * 65)
     
-    return sum_abs_diffs  # Return the last calculated value
+    return velocity_metrics
 
 def get_num_robots_from_config(config_file):
     """Extract number of robots from config file."""
@@ -344,7 +348,7 @@ def build_social_orca():
     finally:
         os.chdir(original_dir)
 
-def run_social_orca(config_file, num_robots):
+def run_social_orca(config_file, num_robots, verbose=False):
     print("\nRunning Social-ORCA Simulation")
     print("=============================")
     
@@ -406,12 +410,15 @@ def run_social_orca(config_file, num_robots):
         print(f"\nAnimation generated at: {animation_path}")
         
         # Evaluate trajectories
-        print("\nEvaluating trajectories...")
+        if verbose:
+            print("\nEvaluating trajectories...")
         trajectory_dir = output_dir
         trajectory_files = list(trajectory_dir.glob("robot_*_trajectory.csv"))
         
+        trajectory_metrics = {}
         for i, traj_file in enumerate(trajectory_files):
-            print(f"\nEvaluating Robot {i} trajectory:")
+            if verbose:
+                print(f"\nEvaluating Robot {i} trajectory:")
             data = pd.read_csv(traj_file)
             
             # Extract coordinates
@@ -427,13 +434,19 @@ def run_social_orca(config_file, num_robots):
             nominal_trajectory = np.column_stack((nominal_x, nominal_y))
             hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
             
-            print("*" * 65)
-            print(f"Robot {i} Path Deviation Metrics:")
-            print(f"L2 Norm: {l2_norm:.4f}")
-            print(f"Hausdorff distance: {hausdorff_dist:.4f}")
-            print("*" * 65)
+            trajectory_metrics[str(i)] = {
+                'l2_norm': l2_norm,
+                'hausdorff_dist': hausdorff_dist
+            }
+            
+            if verbose:
+                print("*" * 65)
+                print(f"Robot {i} Path Deviation Metrics:")
+                print(f"L2 Norm: {l2_norm:.4f}")
+                print(f"Hausdorff distance: {hausdorff_dist:.4f}")
+                print("*" * 65)
         
-        evaluate_velocities(velocity_csv)
+        velocity_metrics = evaluate_velocities(velocity_csv, verbose)
         
         # After evaluating trajectories, compute Makespan Ratios for Social-ORCA
         ttg_list = []
@@ -460,18 +473,24 @@ def run_social_orca(config_file, num_robots):
             writer = csv.writer(file)
             writer.writerow(["robot_id", "ttg"])
             writer.writerows(ttg_list)
-        # Compute and print Makespan Ratios
+        # Compute TTG metrics for clean display
+        ttg_metrics = {}
         ttgs = [row[1] for row in ttg_list]
         fastest_ttg = min(ttgs)
-        print("*" * 65)
-        print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
         for robot_id, ttg in ttg_list:
-            mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')
-            print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f}")
-        print("*" * 65)
+            ttg_metrics[str(robot_id)] = ttg
+        
+        if verbose:
+            print("*" * 65)
+            print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")
+            for robot_id, ttg in ttg_list:
+                mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')
+                print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f}")
+            print("*" * 65)
         
         # Flow Rate calculation for ORCA
-        print("\nCalculating Flow Rate...")
+        if verbose:
+            print("\nCalculating Flow Rate...")
         
         # Parse the log file to extract makespan and completion metrics
         tree = ET.parse(latest_log)
@@ -484,7 +503,8 @@ def run_social_orca(config_file, num_robots):
             makespan_str = summary.get('makespan')
             if makespan_str:
                 total_makespan = float(makespan_str)
-                print(f"Total simulation time: {total_makespan:.2f}s")
+                if verbose:
+                    print(f"Total simulation time: {total_makespan:.2f}s")
         
         # Extract individual agent completion times and success status from log
         log_section = root.find('log')
@@ -513,7 +533,8 @@ def run_social_orca(config_file, num_robots):
             agents_reached_goals = [data for data in agent_completion_data if data['reached_goal']]
             agents_failed = [data for data in agent_completion_data if not data['reached_goal']]
             
-            print(f"Agents that reached goals: {len(agents_reached_goals)}/{len(agent_completion_data)}")
+            if verbose:
+                print(f"Agents that reached goals: {len(agents_reached_goals)}/{len(agent_completion_data)}")
             
             if agents_reached_goals:
                 # Get the completion time of the last agent to reach its goal
@@ -523,30 +544,35 @@ def run_social_orca(config_file, num_robots):
                 if len(agents_reached_goals) == len(agent_completion_data):
                     # All agents reached their goals - use the time when the last one finished
                     makespan = latest_goal_completion
-                    print(f"All agents reached goals. Make-span: {makespan:.2f}s")
-                    print(f"Individual completion times: {[f'{t:.2f}s' for t in goal_completion_times]}")
+                    if verbose:
+                        print(f"All agents reached goals. Make-span: {makespan:.2f}s")
+                        print(f"Individual completion times: {[f'{t:.2f}s' for t in goal_completion_times]}")
                 else:
                     # Some agents didn't reach goals - use total simulation time for fairness
                     all_completion_times = [data['completion_time'] for data in agent_completion_data]
                     makespan = max(all_completion_times) if all_completion_times else (total_makespan or latest_goal_completion)
-                    print(f"Not all agents reached goals. Using total simulation time: {makespan:.2f}s")
-                    print(f"Successful agents completed at: {[f'{t:.2f}s' for t in goal_completion_times]}")
-                    if agents_failed:
-                        failed_times = [data['completion_time'] for data in agents_failed]
-                        print(f"Failed agents stopped at: {[f'{t:.2f}s' for t in failed_times]}")
+                    if verbose:
+                        print(f"Not all agents reached goals. Using total simulation time: {makespan:.2f}s")
+                        print(f"Successful agents completed at: {[f'{t:.2f}s' for t in goal_completion_times]}")
+                        if agents_failed:
+                            failed_times = [data['completion_time'] for data in agents_failed]
+                            print(f"Failed agents stopped at: {[f'{t:.2f}s' for t in failed_times]}")
             else:
                 # No agents reached their goals - use total simulation time
                 all_completion_times = [data['completion_time'] for data in agent_completion_data]
                 makespan = max(all_completion_times) if all_completion_times else total_makespan
-                print(f"No agents reached their goals. Make-span: {makespan:.2f}s")
+                if verbose:
+                    print(f"No agents reached their goals. Make-span: {makespan:.2f}s")
         elif total_makespan:
             makespan = total_makespan
-            print(f"Using total simulation time as make-span: {makespan:.2f}s")
+            if verbose:
+                print(f"Using total simulation time as make-span: {makespan:.2f}s")
         else:
             # Fallback: calculate makespan from trajectory data
             max_steps = max(len(agent['positions']) for agent in agents_data)
             makespan = max_steps * time_step
-            print(f"Make-span calculated from trajectory data: {makespan:.2f}s")
+            if verbose:
+                print(f"Make-span calculated from trajectory data: {makespan:.2f}s")
         
         # Determine gap width based on config file environment
         # ORCA uses grid coordinates (0-64), so we need to calculate actual gap widths
@@ -649,22 +675,56 @@ def run_social_orca(config_file, num_robots):
                 flow_rate = num_robots / (gap_width * makespan)
                 flow_rate_type = "Standard calculation (goal status unknown)"
             
-            print("*" * 65)
-            print(f"ORCA Flow Rate Calculation:")
-            print(f"Scenario: {flow_rate_type}")
-            print(f"Total agents: {num_robots}")
-            if agent_completion_data and len([data for data in agent_completion_data if data['reached_goal']]) != num_robots:
-                successful_agents = len([data for data in agent_completion_data if data['reached_goal']])
-                print(f"Successful agents: {successful_agents}")
-            print(f"Gap width (z): {gap_width} grid units")
-            print(f"Make-span (T): {makespan:.2f}s")
-            print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
-            print("*" * 65)
+            if verbose:
+                print("*" * 65)
+                print(f"ORCA Flow Rate Calculation:")
+                print(f"Scenario: {flow_rate_type}")
+                print(f"Total agents: {num_robots}")
+                if agent_completion_data and len([data for data in agent_completion_data if data['reached_goal']]) != num_robots:
+                    successful_agents = len([data for data in agent_completion_data if data['reached_goal']])
+                    print(f"Successful agents: {successful_agents}")
+                print(f"Gap width (z): {gap_width} grid units")
+                print(f"Make-span (T): {makespan:.2f}s")
+                print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
+                print("*" * 65)
         else:
-            print("*" * 65)
-            print("Flow Rate: Could not compute (invalid make-span or gap width)")
-            print(f"Make-span: {makespan:.2f}s, Gap width: {gap_width}")
-            print("*" * 65)
+            flow_rate = 0.0
+            if verbose:
+                print("*" * 65)
+                print("Flow Rate: Could not compute (invalid make-span or gap width)")
+                print(f"Make-span: {makespan:.2f}s, Gap width: {gap_width}")
+                print("*" * 65)
+        
+        # Calculate success rate
+        if agent_completion_data:
+            successful_count = len([data for data in agent_completion_data if data['reached_goal']])
+            success_rate = (successful_count / len(agent_completion_data)) * 100.0
+        else:
+            success_rate = 0.0
+        
+        # Display clean metrics if not in verbose mode
+        if not verbose:
+            # Extract environment from config path
+            config_name = str(config_path).lower()
+            if 'doorway' in config_name:
+                environment = 'doorway'
+            elif 'hallway' in config_name:
+                environment = 'hallway'
+            elif 'intersection' in config_name:
+                environment = 'intersection'
+            else:
+                environment = 'unknown'
+            
+            display_clean_orca_metrics(
+                trajectory_metrics,
+                velocity_metrics,
+                ttg_metrics,
+                flow_rate,
+                makespan,
+                success_rate,
+                environment,
+                num_robots
+            )
             
     except Exception as e:
         print(f"Error processing trajectories: {e}")
@@ -1149,6 +1209,38 @@ def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
         
         print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
 
+def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
+    """Display ORCA metrics in clean minimal format."""
+    print("\nSOCIAL-ORCA RESULTS")
+    
+    # Calculate successful agents count from ttg_metrics
+    successful_count = sum(1 for ttg in ttg_metrics.values() if ttg < float('inf'))
+    
+    print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
+    print()
+    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+    
+    # Get sorted robot IDs for consistent display
+    robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
+    
+    for robot_id in robot_ids:
+        # Get metrics for this robot
+        ttg = ttg_metrics.get(robot_id, float('inf'))
+        # Calculate MR (need fastest TTG for calculation)
+        finite_ttgs = [t for t in ttg_metrics.values() if t < float('inf')]
+        fastest_ttg = min(finite_ttgs) if finite_ttgs else 1
+        mr = ttg / fastest_ttg if ttg != float('inf') and fastest_ttg > 0 else float('inf')
+        
+        avg_delta_v = velocity_metrics.get(robot_id, 0.0)
+        path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+        hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+        
+        # Handle infinite MR (when robot didn't reach goal)
+        mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
+        ttg_str = "∞" if ttg == float('inf') else str(ttg)
+        
+        print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
     root = ET.Element('root')
@@ -1501,6 +1593,22 @@ def main():
             env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
             env_type = env_types[env_choice]
             
+            # Ask for output format preference
+            print("\nOutput format options:")
+            print("1. Clean (minimal text output)")
+            print("2. Verbose (detailed output with explanations)")
+            
+            while True:
+                try:
+                    verbose_choice = int(input("\nEnter output format (1-2): "))
+                    if verbose_choice in [1, 2]:
+                        break
+                    print("Invalid choice! Please enter 1 or 2.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            verbose_mode = (verbose_choice == 2)
+            
             # Ask for number of robots
             while True:
                 try:
@@ -1580,7 +1688,7 @@ def main():
             config_file = generate_config(env_type, num_robots, robot_positions)
             
             # Run the simulation
-            run_social_orca(config_file, num_robots)
+            run_social_orca(config_file, num_robots, verbose=verbose_mode)
         elif choice == 2:
             # Ask for environment type for IMPC-DR
             print("\nAvailable environments:")
