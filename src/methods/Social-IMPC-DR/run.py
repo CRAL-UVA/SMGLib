@@ -56,12 +56,12 @@ import threading
 #     return agent_list
 
 
-def run_one_step(agent_list,obstacle_list):
+def run_one_step(agent_list,obstacle_list, verbose=True):
     
     num_agents_to_process = len(agent_list)
     items=[]
     for i in range(num_agents_to_process):
-        items.append( [agent_list[i],obstacle_list] )
+        items.append( [agent_list[i],obstacle_list, verbose] )
 
     # running it in parallel
     agent_list=[run_one_agent(items[i]) for i in range(num_agents_to_process)]
@@ -71,6 +71,7 @@ def run_one_agent(items):
 
     agent=items[0]
     obstacle_list=items[1]
+    verbose=items[2] if len(items) > 2 else True
 
     # os.sched_setaffinity(0, SET.affinity[agent.index])
 
@@ -83,7 +84,7 @@ def run_one_agent(items):
         GET_cons(agent,obstacle_list, wall_collision_multiplier)
     
     # running convex program
-    agent.cache=run_cvxp(agent)
+    agent.cache=run_cvxp(agent, verbose)
 
     # get new cost_index
     agent.post_processing()
@@ -92,7 +93,7 @@ def run_one_agent(items):
 
 
 # run convex program of each agents
-def run_cvxp(agent):
+def run_cvxp(agent, verbose=True):
     
     state = agent.state
     cons_A = agent.cons_A
@@ -138,7 +139,8 @@ def run_cvxp(agent):
     p = 2* VB.T @  Phi.T @ Sigma @ (  Phi @  ( VA @ state + VC ) - G_p) +\
         2* VB.T @  Phi.T @ Delta_P @ Phi @  ( VA @ state + VC ) 
     
-    print(state)
+    if verbose:
+        print(state)
     #print(Theta_v)
     
     # define the variables

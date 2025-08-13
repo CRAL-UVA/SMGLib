@@ -23,7 +23,7 @@ def initialize():
 
     return agent_list
 
-def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones=None, wall_collision_multiplier=2.0):
+def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones=None, wall_collision_multiplier=2.0, verbose=True):
 
     # os.sched_setaffinity(0,[0,1,2,3,4,5,6,7])
     
@@ -85,14 +85,15 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
         stationary_agents = agent_list[num_moving_drones:]
 
         # run one step for moving agents only
-        moving_agents = run_one_step(moving_agents, obstacle_list)
+        moving_agents = run_one_step(moving_agents, obstacle_list, verbose)
 
         # update the main agent_list
         agent_list = moving_agents + stationary_agents
 
         # print
         end = datetime.datetime.now()
-        print("Step %s have finished, running time is %s"%(i,end-end_last))
+        if verbose:
+            print("Step %s have finished, running time is %s"%(i,end-end_last))
     
 
         # Store velocity data
@@ -105,10 +106,11 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
                     if distance_to_target < 0.02:  # 0.02 units threshold (very strict)
                         target_reached[j] = True
                         individual_completion_times[j] = i  # Record the exact step when goal was reached
-                        print(f"Robot {j} reached goal at step {i}, distance: {distance_to_target:.4f}, position: {agent.p}, target: {target[j]}")
+                        if verbose:
+                            print(f"Robot {j} reached goal at step {i}, distance: {distance_to_target:.4f}, position: {agent.p}, target: {target[j]}")
                     
                     # Debug: Show progress for robots that are getting closer
-                    if i % 20 == 0:  # Every 20 steps
+                    if i % 20 == 0 and verbose:  # Every 20 steps
                         print(f"Robot {j} progress at step {i}: distance to goal = {distance_to_target:.4f}")
 
                 vx, vy = agent.v  # Extract vx and vy from the agent's velocity
@@ -137,7 +139,8 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
         if not all_goals_reached and all(target_reached[:num_moving_drones]):
             all_goals_reached = True
             completion_step = i
-            print(f"All moving robots reached their goals at step {i}")
+            if verbose:
+                print(f"All moving robots reached their goals at step {i}")
 
         collect_data(agent_list)
 
@@ -177,18 +180,21 @@ def PLAN( Num, ini_x, ini_v,target,r_min,epsilon,h,K,episodes, num_moving_drones
     
     # Final check: if completion_step is still episodes, it means no robots reached goals
     if completion_step == episodes:
-        print(f"No robots reached their goals within the simulation time ({episodes} steps)")
+        if verbose:
+            print(f"No robots reached their goals within the simulation time ({episodes} steps)")
     else:
-        print(f"All robots reached goals at step {completion_step} out of {episodes} total steps")
+        if verbose:
+            print(f"All robots reached goals at step {completion_step} out of {episodes} total steps")
     
     # Report completion statistics
     successful_robots = sum(target_reached[:num_moving_drones])
-    print(f"\nCompletion Statistics:")
-    print(f"  - Total moving robots: {num_moving_drones}")
-    print(f"  - Robots that reached goals: {successful_robots}")
-    print(f"  - Success rate: {(successful_robots/num_moving_drones)*100:.1f}%")
+    if verbose:
+        print(f"\nCompletion Statistics:")
+        print(f"  - Total moving robots: {num_moving_drones}")
+        print(f"  - Robots that reached goals: {successful_robots}")
+        print(f"  - Success rate: {(successful_robots/num_moving_drones)*100:.1f}%")
     
-    if successful_robots > 0:
+    if successful_robots > 0 and verbose:
         successful_times = [individual_completion_times[i] for i in range(num_moving_drones) if target_reached[i]]
         print(f"  - Fastest completion time: {min(successful_times)} steps")
         print(f"  - Slowest completion time: {max(successful_times)} steps")

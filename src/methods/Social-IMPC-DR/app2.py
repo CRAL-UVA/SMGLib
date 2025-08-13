@@ -18,15 +18,6 @@ def get_input(prompt, default, type_cast=str):
         except ValueError:
             print(f"Invalid input! Please enter a valid {type_cast.__name__}.")
 
-def get_position_input(prompt):
-    while True:
-        try:
-            user_input = input(prompt)
-            x, y = map(float, user_input.split())
-            return np.array([x, y])
-        except ValueError:
-            print("Invalid input! Please enter two numbers separated by space (e.g., '1.0 2.0')")
-
 def save_video(frames, filename="video_recordings/simulation.avi", fps=5):
     if not frames:
         print("No frames captured. Cannot save video.")
@@ -276,8 +267,14 @@ def setup_intersection_scenario():
 
 def main():
     env_type = None
+    verbose_mode = True  # Default to verbose for backwards compatibility
+    
     if len(sys.argv) > 1:
         env_type = sys.argv[1]
+    
+    if len(sys.argv) > 2:
+        verbose_arg = sys.argv[2]
+        verbose_mode = (verbose_arg == '--verbose')
 
     obstacle_agents_x = []
     obstacle_agents_v = []
@@ -312,152 +309,71 @@ def main():
     
     print("\nConfigure moving drones:")
     
-    use_default = False
-    use_random = False
-
-    if (env_type == 'doorway' and num_moving_drones == 2) or (env_type == 'hallway' and num_moving_drones == 2) or (env_type == 'intersection' and num_moving_drones == 2):
-        scenario_name = env_type
-        if get_input(f"Use default crossing positions for the 2 drones in {scenario_name}? (y/n)", "y", str).lower() == 'y':
-            use_default = True
-
-    if not use_default:
-        if get_input("Use random initial and target positions? (y/n)", "n", str).lower() == 'y':
-            use_random = True
+    # Print environment-specific instructions
+    if env_type == 'doorway':
+        print("\nDoorway Configuration:")
+        print("- The doorway has a vertical wall at x=1.0 with a gap between y=0.8-1.6")
+        print("- X and Y coordinates should be between 0.2 and 2.3")
+    elif env_type == 'hallway':
+        print("\nHallway Configuration:")
+        print("- The hallway has walls at y=0.7 and y=1.7")
+        print("- Robots should stay between y=0.95-1.45 (middle of hallway)")
+        print("- X coordinates should be between 0.2 and 2.3")
+    elif env_type == 'intersection':
+        print("\nIntersection Configuration:")
+        print("- The intersection has corridors with center at (1.25, 1.25)")
+        print("- Corridor width extends from 0.85 to 1.65 in both directions")
+        print("- X and Y coordinates should be between 0.2 and 2.3")
     
-    # Generate initial positions and targets for moving drones
-    if use_default:
-        if env_type == 'doorway':
-            print("Using default crossing positions for doorway scenario.")
-            ini_x_moving = [np.array([0.5, 1.2]), np.array([2.0, 1.2])]
-            target_moving = [np.array([2.0, 1.2]), np.array([0.5, 1.2])]
-        elif env_type == 'hallway':
-            print("Using default crossing positions for hallway scenario.")
-            # Robots move horizontally through the corridor at y=1.2 (middle of narrower corridor)
-            corridor_center_y = 1.2  # Middle between 0.7 and 1.7
-            ini_x_moving = [np.array([0.3, corridor_center_y]), np.array([2.2, corridor_center_y])]
-            target_moving = [np.array([2.2, corridor_center_y]), np.array([0.3, corridor_center_y])]
-        elif env_type == 'intersection':
-            print("Using default crossing positions for intersection scenario.")
-            # Robot 1: moves left to right through horizontal corridor
-            # Robot 2: moves bottom to top through vertical corridor
-            corridor_center = 1.25
-            ini_x_moving = [
-                np.array([0.3, corridor_center]),  # Robot 1: left side, horizontal corridor
-                np.array([corridor_center, 0.3])   # Robot 2: bottom side, vertical corridor
-            ]
-            target_moving = [
-                np.array([2.2, corridor_center]),  # Robot 1: right side, horizontal corridor
-                np.array([corridor_center, 2.2])   # Robot 2: top side, vertical corridor
-            ]
-    elif use_random:
-        if env_type == 'doorway':
-            print("Using smart random positions for doorway scenario.")
-            ini_x_moving = []
-            target_moving = []
-            for i in range(num_moving_drones):
-                # Alternate starting sides for a good crossing scenario
-                if i % 2 == 0:
-                    # Start on left, target on right
-                    start_x = np.random.uniform(0.2, 0.8)
-                    target_x = np.random.uniform(1.2, 2.3)
-                else:
-                    # Start on right, target on left
-                    start_x = np.random.uniform(1.2, 2.3)
-                    target_x = np.random.uniform(0.2, 0.8)
-                
-                # Random y that's not too close to top/bottom
-                start_y = np.random.uniform(0.5, 2.0)
-                target_y = np.random.uniform(0.5, 2.0)
-
-                ini_x_moving.append(np.array([start_x, start_y]))
-                target_moving.append(np.array([target_x, target_y]))
-        elif env_type == 'hallway':
-            print("Using smart random positions for hallway scenario.")
-            ini_x_moving = []
-            target_moving = []
-            corridor_center_y = 1.2  # Middle of the narrower corridor
-            corridor_tolerance = 0.25  # Increased tolerance to allow robots closer to walls
-            
-            for i in range(num_moving_drones):
-                # Alternate starting sides for a good crossing scenario
-                if i % 2 == 0:
-                    # Start on left, target on right
-                    start_x = np.random.uniform(0.2, 0.6)
-                    target_x = np.random.uniform(1.9, 2.3)
-                else:
-                    # Start on right, target on left
-                    start_x = np.random.uniform(1.9, 2.3)
-                    target_x = np.random.uniform(0.2, 0.6)
-                
-                # Keep robots in the corridor with variation that allows them near walls
-                # Corridor is from 0.7 to 1.7, so robots can be positioned from 0.95 to 1.45
-                start_y = np.random.uniform(corridor_center_y - corridor_tolerance, 
-                                          corridor_center_y + corridor_tolerance)
-                target_y = np.random.uniform(corridor_center_y - corridor_tolerance, 
-                                           corridor_center_y + corridor_tolerance)
-
-                ini_x_moving.append(np.array([start_x, start_y]))
-                target_moving.append(np.array([target_x, target_y]))
-        elif env_type == 'intersection':
-            print("Using smart random positions for intersection scenario.")
-            ini_x_moving = []
-            target_moving = []
-            corridor_center = 1.25
-            corridor_tolerance = 0.08  # Stay within corridor bounds
-            
-            for i in range(num_moving_drones):
-                # Alternate between horizontal and vertical corridors
-                if i % 2 == 0:
-                    # Horizontal corridor movement (left to right or right to left)
-                    if np.random.rand() > 0.5:
-                        # Left to right
-                        start_x = np.random.uniform(0.2, 0.6)
-                        target_x = np.random.uniform(1.9, 2.3)
-                    else:
-                        # Right to left
-                        start_x = np.random.uniform(1.9, 2.3)
-                        target_x = np.random.uniform(0.2, 0.6)
-                    
-                    # Keep in horizontal corridor
-                    start_y = np.random.uniform(corridor_center - corridor_tolerance, 
-                                              corridor_center + corridor_tolerance)
-                    target_y = np.random.uniform(corridor_center - corridor_tolerance, 
-                                                corridor_center + corridor_tolerance)
-                else:
-                    # Vertical corridor movement (bottom to top or top to bottom)
-                    if np.random.rand() > 0.5:
-                        # Bottom to top
-                        start_y = np.random.uniform(0.2, 0.6)
-                        target_y = np.random.uniform(1.9, 2.3)
-                    else:
-                        # Top to bottom
-                        start_y = np.random.uniform(1.9, 2.3)
-                        target_y = np.random.uniform(0.2, 0.6)
-                    
-                    # Keep in vertical corridor
-                    start_x = np.random.uniform(corridor_center - corridor_tolerance, 
-                                              corridor_center + corridor_tolerance)
-                    target_x = np.random.uniform(corridor_center - corridor_tolerance, 
-                                                corridor_center + corridor_tolerance)
-
-                ini_x_moving.append(np.array([start_x, start_y]))
-                target_moving.append(np.array([target_x, target_y]))
-        else:
-            print("Using simple random positions.")
-            ini_x_moving = [np.random.rand(2) * 2.5 for _ in range(num_moving_drones)]
-            target_moving = [np.random.rand(2) * 2.5 for _ in range(num_moving_drones)]
+    # Get drone positions in ORCA-style individual configuration
+    ini_x_moving = []
+    target_moving = []
+    
+    # Set default values based on environment type
+    if env_type == 'doorway':
+        default_positions = [
+            {'start_x': 0.5, 'start_y': 1.2, 'goal_x': 2.0, 'goal_y': 1.2},
+            {'start_x': 2.0, 'start_y': 1.2, 'goal_x': 0.5, 'goal_y': 1.2}
+        ]
+    elif env_type == 'hallway':
+        corridor_center_y = 1.2
+        default_positions = [
+            {'start_x': 0.3, 'start_y': corridor_center_y, 'goal_x': 2.2, 'goal_y': corridor_center_y},
+            {'start_x': 2.2, 'start_y': corridor_center_y, 'goal_x': 0.3, 'goal_y': corridor_center_y}
+        ]
+    elif env_type == 'intersection':
+        corridor_center = 1.25
+        default_positions = [
+            {'start_x': 0.3, 'start_y': corridor_center, 'goal_x': 2.2, 'goal_y': corridor_center},
+            {'start_x': corridor_center, 'start_y': 0.3, 'goal_x': corridor_center, 'goal_y': 2.2}
+        ]
     else:
-        # Get custom positions from user
-        ini_x_moving = []
-        for i in range(num_moving_drones):
-            print(f"\nMoving Drone {i+1}:")
-            pos = get_position_input(f"Enter initial position (x y): ")
-            ini_x_moving.append(pos)
+        # Generic defaults
+        default_positions = [
+            {'start_x': 0.5, 'start_y': 0.5, 'goal_x': 2.0, 'goal_y': 2.0},
+            {'start_x': 2.0, 'start_y': 2.0, 'goal_x': 0.5, 'goal_y': 0.5}
+        ]
+    
+    for i in range(num_moving_drones):
+        print(f"\n--- Agent {i+1} Parameters ---")
         
-        target_moving = []
-        for i in range(num_moving_drones):
-            pos = get_position_input(f"Enter target position for drone {i+1} (x y): ")
-            target_moving.append(pos)
+        # Get default values for this drone (cycle through available defaults)
+        default_idx = i % len(default_positions)
+        defaults = default_positions[default_idx]
+        
+        # Get start position
+        start_x = get_input(f"Start X position (default: {defaults['start_x']})", defaults['start_x'], float)
+        start_y = get_input(f"Start Y position (default: {defaults['start_y']})", defaults['start_y'], float)
+        
+        # Get goal position  
+        goal_x = get_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'], float)
+        goal_y = get_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'], float)
+        
+        # Store positions
+        ini_x_moving.append(np.array([start_x, start_y]))
+        target_moving.append(np.array([goal_x, goal_y]))
+        
+        print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
     
     ini_v_moving = [np.zeros(2) for _ in range(num_moving_drones)]
 
@@ -468,7 +384,7 @@ def main():
     num_drones = len(ini_x)
     
     print("\nStarting simulation...")
-    result, agent_list, completion_step = PLAN(num_drones, ini_x, ini_v, target, min_radius, epsilon, step_size, k_value, max_steps, num_moving_drones=num_moving_drones, wall_collision_multiplier=wall_collision_multiplier)
+    result, agent_list, completion_step = PLAN(num_drones, ini_x, ini_v, target, min_radius, epsilon, step_size, k_value, max_steps, num_moving_drones=num_moving_drones, wall_collision_multiplier=wall_collision_multiplier, verbose=verbose_mode)
     
     # Save completion step for Flow Rate calculation
     with open("completion_step.txt", "w") as f:
