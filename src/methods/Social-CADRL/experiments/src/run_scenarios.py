@@ -89,19 +89,19 @@ def create_base_hallway_agents():
     return agents
 
 def create_base_doorway_agents():
-    """Create the base agents for the doorway scenario (vertical configuration)"""
+    """Create the base agents for the doorway scenario (horizontal configuration)"""
     agents = []
-    # Add static agents forming vertical wall with doorway gap
-    # Single vertical line at x=0.0 with gap in the middle
+    # Add static agents forming horizontal wall with doorway gap
+    # Single horizontal line at y=0.0 with gap in the middle
     positions = []
     
-    # Bottom side of vertical wall: y from -9.0 to -2.0
-    for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-        positions.append((0.0, y))
+    # Left side of horizontal wall: x from -9.0 to -2.0
+    for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+        positions.append((x, 0.0))
     
-    # Top side of vertical wall: y from 2.0 to 9.0  
-    for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-        positions.append((0.0, y))
+    # Right side of horizontal wall: x from 2.0 to 9.0  
+    for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+        positions.append((x, 0.0))
     
     for i, (x, y) in enumerate(positions):
         agents.append(Agent(
@@ -130,13 +130,11 @@ def get_obstacle_positions(scenario_type):
         ]
     elif scenario_type == 'doorway':
         obstacles = []
-        # Create vertical wall
-        # Bottom side of vertical wall
-        for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-            obstacles.append((0.0, y))
-        # Top side of vertical wall
-        for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-            obstacles.append((0.0, y))
+        # Create horizontal wall aligned across y=0 with same spacing
+        for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+            obstacles.append((x, 0.0))
+        for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+            obstacles.append((x, 0.0))
         return obstacles
     return []
 
@@ -150,20 +148,9 @@ def validate_agent_position(x, y, scenario_type, position_type="position"):
         if distance < 0.8:  # Agent radius + obstacle radius
             return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is too close to obstacle at ({obs_x:.1f}, {obs_y:.1f}). Minimum distance is 0.8."
     
-    # Check scenario-specific bounds
-    if scenario_type == 'intersection':
-        if abs(x) > 8 or abs(y) > 8:
-            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside intersection bounds (±8, ±8)."
-    elif scenario_type == 'hallway':
-        if abs(y) > 1.5:
-            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside hallway bounds (y must be within ±1.5)."
-        if abs(x) > 6:
-            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside hallway bounds (x must be within ±6)."
-    elif scenario_type == 'doorway':
-        if abs(x) > 0.8:
-            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside doorway opening (x must be within ±0.8)."
-        if abs(y) > 12:
-            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside scenario bounds (y must be within ±12)."
+            # Check scenario-specific bounds (10x10 square for all)
+        if abs(x) > 10 or abs(y) > 10:
+            return False, f"Agent {position_type} ({x:.1f}, {y:.1f}) is outside bounds (±10, ±10)."
     
     return True, ""
 
@@ -212,24 +199,24 @@ def get_default_values(scenario_type):
             'heading': np.pi
         }
     elif scenario_type == 'doorway':
-        # First agent: left side going through doorway to right side
-        defaults['start_x'] = -3.0
-        defaults['start_y'] = 0.0
-        defaults['goal_x'] = 3.0
-        defaults['goal_y'] = 0.0
+        # First agent: bottom going up through horizontal doorway
+        defaults['start_x'] = 0.0
+        defaults['start_y'] = -3.0
+        defaults['goal_x'] = 0.0
+        defaults['goal_y'] = 3.0
         defaults['radius'] = 0.5
         defaults['pref_speed'] = 1.0
-        defaults['heading'] = 0.0
+        defaults['heading'] = np.pi/2
         
-        # Second agent: right side going through doorway to left side
+        # Second agent: top going down through horizontal doorway
         defaults['agent2'] = {
-            'start_x': 3.0,
-            'start_y': 0.0,
-            'goal_x': -3.0,
-            'goal_y': 0.0,
+            'start_x': 0.0,
+            'start_y': 3.0,
+            'goal_x': 0.0,
+            'goal_y': -3.0,
             'radius': 0.5,
             'pref_speed': 1.0,
-            'heading': np.pi
+            'heading': -np.pi/2
         }
     
     return defaults
@@ -602,8 +589,107 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
     
     # Save trajectory data for further analysis
-    output_dir = Path("logs/cadrl_evaluation")
+    root_dir = Path(__file__).resolve().parents[5]
+    output_dir = root_dir / "logs" / "Social-CADRL" / "trajectories"
     save_cadrl_trajectory_data(agent_tracking_data, output_dir, time_step)
+
+    # Generate animation even if built-in path missed
+    try:
+        print("Creating CADRL animation (fallback)...")
+        fig, ax = plt.subplots(figsize=(12, 10))
+        ax.set_aspect('equal')
+        ax.grid(True)
+
+        # Compute bounds from positions_history
+        all_x = [p[0] for step in positions_history for p in step]
+        all_y = [p[1] for step in positions_history for p in step]
+        # Force 10x10 square grid across all scenarios
+        ax.set_xlim(-10, 10)
+        ax.set_ylim(-10, 10)
+
+        # Determine indices of dynamic agents and obstacles (static agents)
+        dynamic_indices = [agents.index(da) for da in dynamic_agents if da in agents]
+        obstacle_indices = [i for i in range(len(agents)) if i not in dynamic_indices]
+
+        # Color palette for dynamic agents
+        agent_colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+
+        # Create separate scatters: dynamic agents (colored) and obstacles (gray)
+        dyn_scatter = ax.scatter([], [], c=[], s=200, edgecolors='black', linewidths=1, label='Agent')
+        obs_scatter = ax.scatter([], [], c='gray', s=200, edgecolors='black', linewidths=1, label='Obstacle')
+
+        # Plot goals as green stars for dynamic agents
+        # Prefer agent_tracking_data, fallback to dynamic_agents' goal attributes
+        goal_points = []
+        if agent_tracking_data:
+            for item in agent_tracking_data:
+                goal_points.append(item.get('goal_pos'))
+        else:
+            for da in dynamic_agents:
+                try:
+                    goal = [da.goal_global_frame[0], da.goal_global_frame[1]]
+                except Exception:
+                    goal = None
+                goal_points.append(goal)
+        for gp in goal_points:
+            if gp is not None:
+                ax.plot(gp[0], gp[1], '*', color='green', markersize=12)
+
+        # Build legend: obstacles as gray solid circle, dynamic agents colored, goal as green star
+        legend_handles = []
+        legend_labels = []
+        import matplotlib.lines as mlines
+        # One obstacle handle
+        legend_handles.append(mlines.Line2D([], [], color='gray', marker='o', linestyle='None',
+                                            markersize=10, markerfacecolor='gray', markeredgecolor='black'))
+        legend_labels.append('Obstacle')
+        # Dynamic agent handles
+        for i, _ in enumerate(dynamic_indices):
+            color = agent_colors[i % len(agent_colors)]
+            legend_handles.append(mlines.Line2D([], [], color=color, marker='o', linestyle='None',
+                                                markersize=10, markerfacecolor=color, markeredgecolor='black'))
+            legend_labels.append(f'Agent {i+1}')
+        # Goal handle (green star)
+        legend_handles.append(mlines.Line2D([], [], color='green', marker='*', linestyle='None',
+                                            markersize=12, markerfacecolor='green', markeredgecolor='none'))
+        legend_labels.append('Goal')
+
+        ax.legend(legend_handles, legend_labels,
+                  loc='center left', bbox_to_anchor=(1.01, 0.5), fontsize=12, borderaxespad=0., markerscale=1.2)
+        plt.tight_layout(); plt.subplots_adjust(right=0.8)
+
+        # Update function
+        def upd(f):
+            if f < len(positions_history):
+                pos = positions_history[f]
+                # Obstacles
+                obs_pos = [pos[i] for i in obstacle_indices] if obstacle_indices else []
+                if obs_pos:
+                    obs_scatter.set_offsets(np.array(obs_pos).reshape(-1, 2))
+                else:
+                    obs_scatter.set_offsets(np.empty((0, 2)))
+                # Dynamic agents
+                dyn_pos = [pos[i] for i in dynamic_indices] if dynamic_indices else []
+                if dyn_pos:
+                    dyn_colors = [agent_colors[i % len(agent_colors)] for i in range(len(dyn_pos))]
+                    dyn_scatter.set_offsets(np.array(dyn_pos).reshape(-1, 2))
+                    dyn_scatter.set_color(dyn_colors)
+                else:
+                    dyn_scatter.set_offsets(np.empty((0, 2)))
+                    dyn_scatter.set_color([])
+            return [dyn_scatter, obs_scatter]
+
+        anim = animation.FuncAnimation(fig, upd, frames=len(positions_history), interval=150, blit=True)
+
+        # Save
+        animations_dir = root_dir / 'logs' / 'Social-CADRL' / 'animations'
+        animations_dir.mkdir(parents=True, exist_ok=True)
+        filename = animations_dir / f"{scenario_type}_fallback.gif"
+        anim.save(str(filename), writer='pillow')
+        print(f"Animation saved as {filename}")
+        plt.close(fig)
+    except Exception as e:
+        print(f"Could not create fallback animation: {e}")
     
     return evaluation_results
 

@@ -185,21 +185,21 @@ def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=N
     animations_dir.mkdir(parents=True, exist_ok=True)
     
     # Set up the figure and axis
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(12, 10))
     ax.set_xlim(0, map_size[0])
     ax.set_ylim(0, map_size[1])
     ax.set_aspect('equal')
     
     # Add grid
-    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.grid(True)
     
     # Create scatter plots for robots
-    scatter = ax.scatter([], [], c='blue', s=100)
+    scatter = ax.scatter([], [], c=[], s=200, edgecolors='black', linewidths=1)
     
     # Create goal markers
     for agent in agents_data:
         goal_pos = agent['goal_pos']
-        ax.plot(goal_pos[0], goal_pos[1], 'g*', markersize=10, label='Goal' if agent['id'] == 0 else "")
+        ax.plot(goal_pos[0], goal_pos[1], '*', color='blue', markersize=15, label='Goal' if agent['id'] == 0 else "")
     
     # Add obstacles from config file if provided
     if config_file and os.path.exists(config_file):
@@ -216,7 +216,7 @@ def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=N
             
             # Create polygon patch for obstacle
             vertices = np.array(vertices)
-            polygon = patches.Polygon(vertices, closed=True, facecolor='gray', alpha=0.5)
+            polygon = patches.Polygon(vertices, closed=True, facecolor='black', edgecolor='none', alpha=0.8)
             ax.add_patch(polygon)
     
     # Create velocity vectors
@@ -224,6 +224,34 @@ def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=N
     for _ in agents_data:
         arrow = ax.arrow(0, 0, 0, 0, head_width=0.5, head_length=0.8, fc='red', ec='red', alpha=0.5)
         velocity_arrows.append(arrow)
+    
+    # CADRL-like legend outside plot
+    import matplotlib.lines as mlines
+    legend_handles = []
+    legend_labels = []
+    if len(agents_data) > 1:
+        for i, _ in enumerate(agents_data):
+            color = ['blue','red','green','orange','purple','brown','pink','gray','olive','cyan'][i % 10]
+            h = mlines.Line2D([], [], color=color, marker='o', linestyle='None',
+                               markersize=10, markerfacecolor=color, markeredgecolor='black')
+            legend_handles.append(h)
+            legend_labels.append(f'Agent {i+1}')
+    else:
+        h = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
+                           markersize=10, markerfacecolor='blue', markeredgecolor='black')
+        legend_handles.append(h)
+        legend_labels.append('Agent')
+    ob_h = mlines.Line2D([], [], color='black', marker='o', linestyle='None',
+                         markersize=10, markerfacecolor='black', markeredgecolor='none')
+    legend_handles.append(ob_h)
+    legend_labels.append('Obstacle')
+    g_h = mlines.Line2D([], [], color='blue', marker='*', linestyle='None',
+                        markersize=12, markerfacecolor='blue', markeredgecolor='none')
+    legend_handles.append(g_h)
+    legend_labels.append('Goal')
+    ax.legend(legend_handles, legend_labels,
+              loc='center left', bbox_to_anchor=(1.01, 0.5), fontsize=12, borderaxespad=0., markerscale=1.2)
+    plt.tight_layout(); plt.subplots_adjust(right=0.8)
     
     def update(frame):
         # Update robot positions

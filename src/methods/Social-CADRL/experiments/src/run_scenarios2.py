@@ -86,19 +86,19 @@ def create_base_hallway_agents():
     return agents
 
 def create_base_doorway_agents():
-    """Create the base agents for the doorway scenario (static obstacles)"""
+    """Create the base agents for the doorway scenario (horizontal obstacles)"""
     agents = []
-    # Add static agents forming vertical wall with doorway gap
-    # Single vertical line at x=0.0 with gap in the middle
+    # Add static agents forming horizontal wall with doorway gap
+    # Single horizontal line at y=0.0 with gap in the middle
     positions = []
     
-    # Bottom side of vertical wall: y from -9.0 to -2.0
-    for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-        positions.append((0.0, y))
+    # Left side of horizontal wall: x from -9.0 to -2.0
+    for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+        positions.append((x, 0.0))
     
-    # Top side of vertical wall: y from 2.0 to 9.0  
-    for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-        positions.append((0.0, y))
+    # Right side of horizontal wall: x from 2.0 to 9.0  
+    for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+        positions.append((x, 0.0))
     
     for i, (x, y) in enumerate(positions):
         agents.append(Agent(
@@ -127,13 +127,11 @@ def get_obstacle_positions(scenario_type):
         ]
     elif scenario_type == 'doorway':
         obstacles = []
-        # Create vertical wall
-        # Bottom side of vertical wall
-        for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-            obstacles.append((0.0, y))
-        # Top side of vertical wall
-        for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-            obstacles.append((0.0, y))
+        # Create horizontal wall aligned across y=0 with same spacing
+        for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+            obstacles.append((x, 0.0))
+        for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+            obstacles.append((x, 0.0))
         return obstacles
     return []
 
@@ -674,7 +672,10 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     anim = animation.FuncAnimation(fig, update, frames=len(positions_history), interval=150, blit=True)
 
     # Save animation in the correct animations directory with unique name
-    animations_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'animations')
+    # Save to root logs/Social-CADRL/animations
+    from pathlib import Path
+    root_dir = Path(__file__).resolve().parents[5]
+    animations_dir = root_dir / 'logs' / 'Social-CADRL' / 'animations'
     os.makedirs(animations_dir, exist_ok=True)
     
     # Create unique filename based on configuration
@@ -691,7 +692,7 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     else:
         agent_summary += "_default"
     
-    filename = os.path.join(animations_dir, f"{scenario_type}_{agent_summary}.gif")
+    filename = str(animations_dir / f"{scenario_type}_{agent_summary}.gif")
     
     # Save animation
     anim.save(filename, writer='pillow')

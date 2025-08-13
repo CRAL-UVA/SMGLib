@@ -144,8 +144,13 @@ def main():
 
     # Create animation
     ani = animation.FuncAnimation(fig, update, frames=len(positions_history), interval=100, blit=True)
-    ani.save('intersection_animation.gif', writer='pillow')
-    print('Animation generated: {}'.format(os.path.abspath('intersection_animation.gif')))
+    from pathlib import Path
+    root_dir = Path(__file__).resolve().parents[5]
+    animations_dir = root_dir / 'logs' / 'Social-CADRL' / 'animations'
+    animations_dir.mkdir(parents=True, exist_ok=True)
+    outfile = animations_dir / 'intersection_animation.gif'
+    ani.save(str(outfile), writer='pillow')
+    print('Animation generated: {}'.format(outfile))
 
     return True
 
