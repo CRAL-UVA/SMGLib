@@ -1,6 +1,12 @@
 import numpy as np
-import  matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
+import sys
+from pathlib import Path
+
+# Import standardized environment configuration
+sys.path.append(str(Path(__file__).resolve().parents[3] / 'src'))
+from utils import StandardizedEnvironment
 
 color=[ '#1f77b4',
         '#ff7f0e', 
@@ -47,45 +53,60 @@ color=[ '#1f77b4',
 
 
 # plot
-def plot_trajectory(agent_list,r_min):
+def plot_trajectory(agent_list,r_min, env_type='doorway'):
 
-    fig=plt.figure(figsize=(10,10))
+    fig=plt.figure(figsize=StandardizedEnvironment.FIG_SIZE)
     axes = fig.add_subplot(111, aspect='equal')
 
-    moving_colors = ["orange", "blue"]
+    # Use standardized colors
+    moving_colors = StandardizedEnvironment.AGENT_COLORS
 
+    # First, draw obstacles (static agents) as gray circles
     for i, agent in enumerate(agent_list):
-        # Determine agent color
-        is_stationary = len(agent.position) <= 1
-        if is_stationary:
-            agent_color = 'gray'
-        else:
-            agent_color = moving_colors[i % len(moving_colors)]
-
-        # Draw circles for each step in this agent's trajectory
-        for k in range(len(agent.position)):
-            pos=(agent.position[k][0],agent.position[k][1])
-            c=Circle(pos, radius = r_min/2.0, edgecolor='black',facecolor=agent_color, zorder=1)
-            axes.add_artist(c)
-    
-    for i, agent in enumerate(agent_list):
-        # Determine agent color again for this loop
-        is_stationary = len(agent.position) <= 1
-        if is_stationary:
-            agent_color = 'gray'
-        else:
-            agent_color = moving_colors[i % len(moving_colors)]
-
-        # plt.plot(agent_list[i].position[:,0],agent_list[i].position[:,1],zorder=2,c='k',linewidth=4)
-        plt.scatter(agent.position[0][0],agent.position[0][1],marker='s',s=300,zorder=3,edgecolor='k',color=agent_color)
+        # Determine if agent is stationary (obstacle)
+        is_stationary = len(agent.position) <= 1 or all(np.allclose(agent.position[0], p) for p in agent.position)
         
-        # Only draw target for moving agents
+        if is_stationary:
+            # Draw obstacle as gray circle
+            for k in range(len(agent.position)):
+                pos=(agent.position[k][0],agent.position[k][1])
+                c=Circle(pos, radius=StandardizedEnvironment.DEFAULT_AGENT_RADIUS, 
+                        edgecolor='black', facecolor='gray', alpha=0.7, zorder=1)
+                axes.add_artist(c)
+    
+    # Then, draw dynamic agents with colors and trajectories
+    for i, agent in enumerate(agent_list):
+        # Determine if agent is stationary (obstacle)
+        is_stationary = len(agent.position) <= 1 or all(np.allclose(agent.position[0], p) for p in agent.position)
+        
         if not is_stationary:
-            plt.scatter(agent.target[0],agent.target[1],marker='d',s=300,zorder=4,edgecolor='k',color=agent_color)
+            agent_color = moving_colors[i % len(moving_colors)]
+            
+            # Draw trajectory line
+            if len(agent.position) > 1:
+                positions_array = np.array(agent.position)
+                axes.plot(positions_array[:, 0], positions_array[:, 1], 
+                         color=agent_color, linewidth=2, alpha=0.7, zorder=2)
+            
+            # Draw circles for each step in this agent's trajectory
+            for k in range(len(agent.position)):
+                pos=(agent.position[k][0],agent.position[k][1])
+                c=Circle(pos, radius=StandardizedEnvironment.DEFAULT_AGENT_RADIUS, 
+                        edgecolor='black', facecolor=agent_color, alpha=0.8, zorder=2)
+                axes.add_artist(c)
+            
+            # Mark start position with square
+            axes.scatter(agent.position[0][0], agent.position[0][1], marker='s', s=200, 
+                        edgecolor='black', facecolor=agent_color, zorder=3)
+            
+            # Mark goal with green star
+            axes.scatter(agent.target[0], agent.target[1], marker='*', s=300, 
+                        edgecolor='black', facecolor='green', zorder=4)
     
     
-    axes.set_xlim([-0.5,2.5])
-    axes.set_ylim([-0.5,2.5])
+    # Use standardized grid limits
+    axes.set_xlim([StandardizedEnvironment.GRID_X_MIN, StandardizedEnvironment.GRID_X_MAX])
+    axes.set_ylim([StandardizedEnvironment.GRID_Y_MIN, StandardizedEnvironment.GRID_Y_MAX])
     axes.set_xlabel('x(m)')
     axes.set_ylabel('y(m)')
 

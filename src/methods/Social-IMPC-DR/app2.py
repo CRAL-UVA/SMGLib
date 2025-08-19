@@ -5,8 +5,14 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.animation import FuncAnimation
+import matplotlib.lines as mlines
 from test import PLAN
 from plot import plot_trajectory
+from pathlib import Path
+
+# Import standardized environment configuration
+sys.path.append(str(Path(__file__).resolve().parents[3] / 'src'))
+from utils import StandardizedEnvironment
 
 def get_input(prompt, default, type_cast=str):
     while True:
@@ -18,163 +24,146 @@ def get_input(prompt, default, type_cast=str):
         except ValueError:
             print(f"Invalid input! Please enter a valid {type_cast.__name__}.")
 
-def save_video(frames, filename="video_recordings/simulation.avi", fps=5):
-    if not frames:
-        print("No frames captured. Cannot save video.")
-        return
-    
-    if not os.path.exists("video_recordings"):
-        os.makedirs("video_recordings")
-    
-    height, width, _ = frames[0].shape
-    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    out = cv2.VideoWriter(filename, fourcc, fps, (width, height))
-    
-    for frame in frames:
-        out.write(frame)
-    out.release()
-    print(f"Video saved as {filename}")
+def _impc_logs_dirs():
+    root_dir = Path(__file__).resolve().parents[3]
+    anim_dir = root_dir / 'logs' / 'Social-IMPC-DR' / 'animations'
+    traj_dir = root_dir / 'logs' / 'Social-IMPC-DR' / 'trajectories'
+    anim_dir.mkdir(parents=True, exist_ok=True)
+    traj_dir.mkdir(parents=True, exist_ok=True)
+    return anim_dir, traj_dir
 
-def save_gif(agent_list, r_min, filename="video_recordings/simulation.gif", fps=5, num_moving_agents=None):
+
+def save_video(frames, filename=None, fps=5, scenario_type='impc', agent_summary='default'):
+    # This function is kept for compatibility but no longer saves video files
+    # Only GIF files are generated now
+    pass
+
+
+def save_gif(agent_list, r_min, filename=None, fps=5, num_moving_agents=None, scenario_type='impc', agent_summary='default'):
     """Save animation as GIF file."""
-    if not os.path.exists("video_recordings"):
-        os.makedirs("video_recordings")
+    anim_dir, _ = _impc_logs_dirs()
+    if filename is None:
+        filename = anim_dir / f"{scenario_type}_{agent_summary}agents.gif"
+    else:
+        filename = anim_dir / filename
+
+    fig, ax = plt.subplots(figsize=StandardizedEnvironment.FIG_SIZE)
+    ax.set_xlim(StandardizedEnvironment.GRID_X_MIN, StandardizedEnvironment.GRID_X_MAX)
+    ax.set_ylim(StandardizedEnvironment.GRID_Y_MIN, StandardizedEnvironment.GRID_Y_MAX)
+    ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
+
+    # Build positions per frame from agent_list
+    max_frames = max(len(a.position) for a in agent_list) if agent_list else 0
+
+    # Use num_moving_agents parameter to properly distinguish between dynamic agents and obstacles
+    if num_moving_agents is None:
+        # Fallback: infer dynamic/obstacles if num_moving_agents not provided
+        def is_stationary(a):
+            return len(a.position) > 1 and all(np.allclose(a.position[0], p) for p in a.position)
+        dynamic_indices = [i for i, a in enumerate(agent_list) if not is_stationary(a)]
+        obstacle_indices = [i for i in range(len(agent_list)) if i not in dynamic_indices]
+    else:
+        # Use the provided num_moving_agents parameter
+        dynamic_indices = list(range(num_moving_agents))
+        obstacle_indices = list(range(num_moving_agents, len(agent_list)))
+
+    # Use standardized colors
+    colors = StandardizedEnvironment.AGENT_COLORS
+
+    dyn_scatter = ax.scatter([], [], c=[], s=200, edgecolors='black', linewidths=1, label='Agent')
+    obs_scatter = ax.scatter([], [], c='gray', s=200, edgecolors='black', linewidths=1, label='Obstacle')
+
+    # Goals as green stars - only for dynamic agents
+    goal_points = []
+    for i, a in enumerate(agent_list):
+        if i < num_moving_agents:  # Only dynamic agents have goals
+            # IMPC-DR agents use 'target' attribute, not 'goal'
+            gp = getattr(a, 'target', None)
+            if gp is not None and len(gp) == 2:
+                goal_points.append(gp)
+            else:
+                goal_points.append(None)
+        else:
+            goal_points.append(None)
     
-    fig, ax = plt.subplots(figsize=(5, 5))
-    colors = ["orange", "blue"]  # Color assignment for two drones
-    
+    # Plot goals as green stars
+    for gp in goal_points:
+        if gp is not None:
+            ax.scatter(gp[0], gp[1], marker='*', s=300, color='green', edgecolor='black', zorder=4)
+
+    # Legend matching CADRL
+    legend_handles = []
+    legend_labels = []
+    legend_handles.append(mlines.Line2D([], [], color='gray', marker='o', linestyle='None',
+                                        markersize=10, markerfacecolor='gray', markeredgecolor='black'))
+    legend_labels.append('Obstacle')
+    for i, _ in enumerate(dynamic_indices):
+        color = colors[i % len(colors)]
+        legend_handles.append(mlines.Line2D([], [], color=color, marker='o', linestyle='None',
+                                            markersize=10, markerfacecolor=color, markeredgecolor='black'))
+        legend_labels.append(f'Agent {i+1}')
+    legend_handles.append(mlines.Line2D([], [], color='green', marker='*', linestyle='None',
+                                        markersize=12, markerfacecolor='green', markeredgecolor='none'))
+    legend_labels.append('Goal')
+
+    ax.legend(legend_handles, legend_labels,
+              loc='center left', bbox_to_anchor=(1.01, 0.5), fontsize=12, borderaxespad=0., markerscale=1.2)
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.8)
+
+    def frame_positions(frame):
+        pos = []
+        for a in agent_list:
+            if frame < len(a.position):
+                pos.append(a.position[frame])
+            else:
+                pos.append(a.position[-1])
+        return pos
+
     def animate(frame):
-        ax.clear()
-        ax.set_xlim(-0.5, 2.5)
-        ax.set_ylim(-0.5, 2.5)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        
-        for i, agent in enumerate(agent_list):
-            if num_moving_agents is not None:
-                if i < num_moving_agents:
-                    color = colors[i % len(colors)]
-                else:
-                    color = 'gray'
-            else:
-                color = colors[i % len(colors)]
-            
-            # Use last known position if frame is out of bounds
-            pos_index = min(frame, len(agent.position) - 1)
-            pos = agent.position[pos_index]
-            
-            # Draw trajectory as a dotted line
-            if pos_index > 0:
-                past_positions = np.array(agent.position[:pos_index+1])
-                ax.plot(past_positions[:, 0], past_positions[:, 1], linestyle="dotted", color=color, linewidth=2)
-            
-            # Draw solid line for completed part of the trajectory
-            if pos_index > 5:
-                completed_positions = np.array(agent.position[max(0, pos_index-5):pos_index+1])
-                ax.plot(completed_positions[:, 0], completed_positions[:, 1], linestyle="solid", color=color, linewidth=2)
+        pos = frame_positions(frame)
+        # Obstacles (all agents after num_moving_agents)
+        obs_pos = [pos[i] for i in obstacle_indices] if obstacle_indices else []
+        if obs_pos:
+            obs_scatter.set_offsets(np.array(obs_pos).reshape(-1, 2))
+        else:
+            obs_scatter.set_offsets(np.empty((0, 2)))
+        # Dynamic agents (first num_moving_agents)
+        dyn_pos = [pos[i] for i in dynamic_indices] if dynamic_indices else []
+        if dyn_pos:
+            dyn_colors = [colors[i % len(colors)] for i in range(len(dyn_pos))]
+            dyn_scatter.set_offsets(np.array(dyn_pos).reshape(-1, 2))
+            dyn_scatter.set_color(dyn_colors)
+        else:
+            dyn_scatter.set_offsets(np.empty((0, 2)))
+            dyn_scatter.set_color([])
+        return [dyn_scatter, obs_scatter]
 
-            # Draw drone as a circle
-            circle = Circle(pos, radius=r_min / 2.0, edgecolor='black', facecolor=color, zorder=3)
-            ax.add_patch(circle)
+    anim = FuncAnimation(fig, animate, frames=max_frames, interval=StandardizedEnvironment.ANIMATION_INTERVAL, blit=True)
+    anim.save(str(filename), writer='pillow', fps=StandardizedEnvironment.ANIMATION_FPS)
+    print(f"GIF animation saved as {filename}")
 
-            # Mark start position with a square
-            ax.scatter(agent.position[0][0], agent.position[0][1], marker='s', s=100, edgecolor='black', color=color)
-
-            # Mark target with a diamond
-            if num_moving_agents is None or i < num_moving_agents:
-                ax.scatter(agent.target[0], agent.target[1], marker='d', s=100, edgecolor='black', color=color)
-        
-        return ax,
-    
-    anim = FuncAnimation(fig, animate, frames=len(agent_list[0].position), interval=1000//fps, blit=False)
-    
-    try:
-        anim.save(filename, writer='pillow', fps=fps)
-        print(f"GIF saved as {filename}")
-    except Exception as e:
-        print(f"Failed to save GIF: {e}")
-        print("Saving as HTML instead...")
-        try:
-            anim.save(filename.replace('.gif', '.html'), writer='html')
-            print(f"HTML animation saved as {filename.replace('.gif', '.html')}")
-        except Exception as e2:
-            print(f"Failed to save HTML: {e2}")
-    
     plt.close(fig)
 
-def generate_animation(agent_list, r_min, filename="video_recordings/simulation.avi", num_moving_agents=None):
-    frames = []
-    fig, ax = plt.subplots(figsize=(5, 5))
-    
-    colors = ["orange", "blue"]  # Color assignment for two drones
-    
-    for step in range(len(agent_list[0].position)):
-        ax.clear()
-        ax.set_xlim(-0.5, 2.5)
-        ax.set_ylim(-0.5, 2.5)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        
-        for i, agent in enumerate(agent_list):
-            if num_moving_agents is not None:
-                if i < num_moving_agents:
-                    color = colors[i % len(colors)]
-                else:
-                    color = 'gray'
-            else:
-                color = colors[i % len(colors)]
-            
-            # Use last known position if step is out of bounds
-            pos_index = min(step, len(agent.position) - 1)
-            pos = agent.position[pos_index]
-            
-            # Draw trajectory as a dotted line
-            if pos_index > 0:
-                past_positions = np.array(agent.position[:pos_index+1])
-                ax.plot(past_positions[:, 0], past_positions[:, 1], linestyle="dotted", color=color, linewidth=2)
-            
-            # Draw solid line for completed part of the trajectory
-            if pos_index > 5:
-                completed_positions = np.array(agent.position[max(0, pos_index-5):pos_index+1])
-                ax.plot(completed_positions[:, 0], completed_positions[:, 1], linestyle="solid", color=color, linewidth=2)
 
-            # Draw drone as a circle
-            circle = Circle(pos, radius=r_min / 2.0, edgecolor='black', facecolor=color, zorder=3)
-            ax.add_patch(circle)
+def generate_animation(agent_list, r_min, filename=None, num_moving_agents=None, scenario_type='impc', agent_summary=None):
+    # Only generate GIF animation, no video or frame files
+    if agent_summary is None:
+        agent_summary = f"{len(agent_list)}"
 
-            # Mark start position with a square
-            ax.scatter(agent.position[0][0], agent.position[0][1], marker='s', s=100, edgecolor='black', color=color)
-
-            # Mark target with a diamond
-            if num_moving_agents is None or i < num_moving_agents:
-                ax.scatter(agent.target[0], agent.target[1], marker='d', s=100, edgecolor='black', color=color)
-        
-        fig.canvas.draw()
-        image = np.array(fig.canvas.renderer.buffer_rgba())[:, :, :3]
-        frames.append(image)
-
-    save_video(frames, filename)
-    # Also save as GIF
-    save_gif(agent_list, r_min, filename.replace('.avi', '.gif'), num_moving_agents=num_moving_agents)
-    plt.close(fig)
+    # Save only as GIF
+    save_gif(agent_list, r_min, filename=None, fps=StandardizedEnvironment.ANIMATION_FPS, num_moving_agents=num_moving_agents,
+             scenario_type=scenario_type, agent_summary=agent_summary)
 
 def setup_doorway_scenario():
-    """Sets up the stationary wall for the doorway scenario."""
-    print("Setting up Doorway Environment...")
+    """Sets up the stationary wall for the doorway scenario using standardized configuration."""
+    print("Setting up Doorway Environment using standardized configuration...")
     
-    # --- Stationary Obstacle Drones (The Wall) ---
-    wall_x = 1.0  # The wall is now vertical and centered
-    gap_start = 0.8 # y-coordinate for the start of the gap
-    gap_end = 1.6   # y-coordinate for the end of the gap. Gap width is now 0.8.
+    # Use standardized doorway obstacles
+    obstacles = StandardizedEnvironment.get_doorway_obstacles()
     
-    # y-coordinates for the wall segments - increased density for better coverage
-    # More obstacles to ensure continuous wall coverage
-    obstacle_ys = np.concatenate([
-        np.linspace(0.2, gap_start, 8),  # Increased from 4 to 8 obstacles
-        np.linspace(gap_end, 2.3, 8)     # Increased from 4 to 8 obstacles
-    ])
-    
-    ini_x_obstacles = [np.array([wall_x, y]) for y in obstacle_ys]
+    ini_x_obstacles = obstacles
     ini_v_obstacles = [np.zeros(2) for _ in ini_x_obstacles]
     # Stationary agents have their target set to their start position
     target_obstacles = ini_x_obstacles 
@@ -182,27 +171,13 @@ def setup_doorway_scenario():
     return ini_x_obstacles, ini_v_obstacles, target_obstacles
 
 def setup_hallway_scenario():
-    """Sets up the stationary walls for the hallway scenario."""
-    print("Setting up Hallway Environment...")
+    """Sets up the stationary walls for the hallway scenario using standardized configuration."""
+    print("Setting up Hallway Environment using standardized configuration...")
     
-    # --- Stationary Obstacle Drones (The Walls) ---
-    # Create horizontal walls at top and bottom to form a narrower corridor
-    # Bottom wall at y=0.7, Top wall at y=1.7 
-    # This creates a corridor between y=0.7 and y=1.7 (width of 1.0 units - narrower but passable)
+    # Use standardized hallway obstacles
+    obstacles = StandardizedEnvironment.get_hallway_obstacles()
     
-    bottom_wall_y = 0.7
-    top_wall_y = 1.7
-    
-    # Create bottom wall (horizontal line of obstacles) - increased density
-    bottom_wall_xs = np.linspace(0.1, 2.4, 15)  # Increased from 10 to 15 obstacles
-    bottom_wall_positions = [np.array([x, bottom_wall_y]) for x in bottom_wall_xs]
-    
-    # Create top wall (horizontal line of obstacles) - increased density
-    top_wall_xs = np.linspace(0.1, 2.4, 15)  # Increased from 10 to 15 obstacles
-    top_wall_positions = [np.array([x, top_wall_y]) for x in top_wall_xs]
-    
-    # Combine all wall positions
-    ini_x_obstacles = bottom_wall_positions + top_wall_positions
+    ini_x_obstacles = obstacles
     ini_v_obstacles = [np.zeros(2) for _ in ini_x_obstacles]
     # Stationary agents have their target set to their start position
     target_obstacles = ini_x_obstacles
@@ -210,55 +185,13 @@ def setup_hallway_scenario():
     return ini_x_obstacles, ini_v_obstacles, target_obstacles
 
 def setup_intersection_scenario():
-    """Sets up the stationary walls for the intersection scenario."""
-    print("Setting up Intersection Environment...")
+    """Sets up the stationary walls for the intersection scenario using standardized configuration."""
+    print("Setting up Intersection Environment using standardized configuration...")
     
-    # --- Stationary Obstacle Drones (The Walls) ---
-    # Create walls defining the + shaped intersection corridors
-    # The intersection opening is centered at (1.25, 1.25) with wider corridors
+    # Use standardized intersection obstacles
+    obstacles = StandardizedEnvironment.get_intersection_obstacles()
     
-    corridor_center = 1.25
-    corridor_half_width = 0.4  # Half-width of each corridor (gap from center to wall)
-    
-    # Wall positions - only the edges defining the corridors
-    walls = []
-    
-    # Horizontal corridor walls (left-right passage) - increased density
-    # Bottom wall of horizontal corridor
-    for x in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
-        y = corridor_center - corridor_half_width
-        walls.append(np.array([x, y]))
-    
-    # Top wall of horizontal corridor  
-    for x in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
-        y = corridor_center + corridor_half_width
-        walls.append(np.array([x, y]))
-    
-    # Vertical corridor walls (bottom-top passage) - increased density
-    # Left wall of vertical corridor
-    for y in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
-        x = corridor_center - corridor_half_width
-        walls.append(np.array([x, y]))
-    
-    # Right wall of vertical corridor
-    for y in np.linspace(0.1, 2.4, 18):  # Increased from 12 to 18 obstacles
-        x = corridor_center + corridor_half_width
-        walls.append(np.array([x, y]))
-    
-    # Remove wall agents that are in the intersection area itself
-    # (where horizontal and vertical corridors meet)
-    filtered_walls = []
-    intersection_min = corridor_center - corridor_half_width
-    intersection_max = corridor_center + corridor_half_width
-    
-    for wall_pos in walls:
-        x, y = wall_pos
-        # Keep wall if it's not in the central intersection area
-        if not (intersection_min <= x <= intersection_max and 
-                intersection_min <= y <= intersection_max):
-            filtered_walls.append(wall_pos)
-    
-    ini_x_obstacles = filtered_walls
+    ini_x_obstacles = obstacles
     ini_v_obstacles = [np.zeros(2) for _ in ini_x_obstacles]
     # Stationary agents have their target set to their start position
     target_obstacles = ini_x_obstacles
@@ -292,67 +225,67 @@ def main():
     # Get parameters for the moving drones
     num_moving_drones = get_input("Enter number of moving drones", 2, int)
     
-    # Get simulation parameters from user
-    if env_type == 'hallway':
-        # Use smaller minimum radius for hallway to allow passing in narrow corridor
-        min_radius = get_input("Enter minimum distance between drones", 0.08, float)
-    else:
-        min_radius = get_input("Enter minimum distance between drones", 0.1, float)
+    # Get simulation parameters from user - optimized per environment
+    min_radius = get_input("Enter minimum distance between drones", StandardizedEnvironment.DEFAULT_COLLISION_DISTANCE, float)
     
-    # Add configurable wall collision distance
-    wall_collision_multiplier = get_input("Enter wall collision distance multiplier (1.5-3.0 recommended)", 2.0, float)
-    
-    epsilon = get_input("Enter epsilon value", 0.1, float)
-    step_size = get_input("Enter step size", 0.1, float)
-    k_value = get_input("Enter k value", 10, int)
-    max_steps = get_input("Enter maximum number of steps", 100, int)
+    # Environment-specific parameter optimization
+    if env_type == 'doorway':
+        # Doorway: Conservative parameters for precision
+        wall_collision_multiplier = get_input("Enter wall collision distance multiplier (1.2-2.0 recommended)", 1.5, float)
+        epsilon = get_input("Enter epsilon value", 0.05, float)
+        step_size = get_input("Enter step size", 0.05, float)
+        k_value = get_input("Enter k value", 15, int)
+        max_steps = get_input("Enter maximum number of steps", 150, int)
+    elif env_type == 'hallway':
+        # Hallway: Balanced parameters for performance
+        wall_collision_multiplier = get_input("Enter wall collision distance multiplier (1.0-1.5 recommended)", 1.2, float)
+        epsilon = get_input("Enter epsilon value", 0.1, float)  # Increased for faster convergence
+        step_size = get_input("Enter step size", 0.1, float)  # Increased for faster movement
+        k_value = get_input("Enter k value", 10, int)  # Reduced for faster computation
+        max_steps = get_input("Enter maximum number of steps", 100, int)  # Reduced for faster completion
+    elif env_type == 'intersection':
+        # Intersection: Aggressive parameters for performance
+        wall_collision_multiplier = get_input("Enter wall collision distance multiplier (1.0-1.3 recommended)", 1.1, float)
+        epsilon = get_input("Enter epsilon value", 0.15, float)  # Increased for faster convergence
+        step_size = get_input("Enter step size", 0.15, float)  # Increased for faster movement
+        k_value = get_input("Enter k value", 8, int)  # Reduced for faster computation
+        max_steps = get_input("Enter maximum number of steps", 80, int)  # Reduced for faster completion
     
     print("\nConfigure moving drones:")
     
-    # Print environment-specific instructions
+    # Print environment-specific instructions using standardized coordinates
     if env_type == 'doorway':
         print("\nDoorway Configuration:")
-        print("- The doorway has a vertical wall at x=1.0 with a gap between y=0.8-1.6")
-        print("- X and Y coordinates should be between 0.2 and 2.3")
+        print("- The doorway has a vertical wall at x=0 with a gap between y=-2 and y=2")
+        print("- X coordinates should be between -5 and 5")
+        print("- Y coordinates should be between -7 and 7")
     elif env_type == 'hallway':
         print("\nHallway Configuration:")
-        print("- The hallway has walls at y=0.7 and y=1.7")
-        print("- Robots should stay between y=0.95-1.45 (middle of hallway)")
-        print("- X coordinates should be between 0.2 and 2.3")
+        print("- The hallway has walls at y=-2 and y=2")
+        print("- Robots should stay between y=-1.5 and y=1.5 (middle of hallway)")
+        print("- X coordinates should be between -5 and 5")
     elif env_type == 'intersection':
         print("\nIntersection Configuration:")
-        print("- The intersection has corridors with center at (1.25, 1.25)")
-        print("- Corridor width extends from 0.85 to 1.65 in both directions")
-        print("- X and Y coordinates should be between 0.2 and 2.3")
+        print("- The intersection has corridors with center at (0, 0)")
+        print("- Corridor width extends from -2 to 2 in both directions")
+        print("- X and Y coordinates should be between -5 and 5")
     
     # Get drone positions in ORCA-style individual configuration
     ini_x_moving = []
     target_moving = []
     
-    # Set default values based on environment type
-    if env_type == 'doorway':
-        default_positions = [
-            {'start_x': 0.5, 'start_y': 1.2, 'goal_x': 2.0, 'goal_y': 1.2},
-            {'start_x': 2.0, 'start_y': 1.2, 'goal_x': 0.5, 'goal_y': 1.2}
-        ]
-    elif env_type == 'hallway':
-        corridor_center_y = 1.2
-        default_positions = [
-            {'start_x': 0.3, 'start_y': corridor_center_y, 'goal_x': 2.2, 'goal_y': corridor_center_y},
-            {'start_x': 2.2, 'start_y': corridor_center_y, 'goal_x': 0.3, 'goal_y': corridor_center_y}
-        ]
-    elif env_type == 'intersection':
-        corridor_center = 1.25
-        default_positions = [
-            {'start_x': 0.3, 'start_y': corridor_center, 'goal_x': 2.2, 'goal_y': corridor_center},
-            {'start_x': corridor_center, 'start_y': 0.3, 'goal_x': corridor_center, 'goal_y': 2.2}
-        ]
-    else:
-        # Generic defaults
-        default_positions = [
-            {'start_x': 0.5, 'start_y': 0.5, 'goal_x': 2.0, 'goal_y': 2.0},
-            {'start_x': 2.0, 'start_y': 2.0, 'goal_x': 0.5, 'goal_y': 0.5}
-        ]
+    # Get standardized default positions
+    standard_positions = StandardizedEnvironment.get_standard_agent_positions(env_type, num_moving_drones)
+    
+    # Convert to the format expected by the rest of the code
+    default_positions = []
+    for pos in standard_positions:
+        default_positions.append({
+            'start_x': pos['start'][0],
+            'start_y': pos['start'][1],
+            'goal_x': pos['goal'][0],
+            'goal_y': pos['goal'][1]
+        })
     
     for i in range(num_moving_drones):
         print(f"\n--- Agent {i+1} Parameters ---")
@@ -392,7 +325,8 @@ def main():
     
     if result:
         print("\nSimulation completed successfully!")
-        generate_animation(agent_list, min_radius, num_moving_agents=num_moving_drones)
+        print("Using standardized environment configuration for consistent visualization.")
+        generate_animation(agent_list, min_radius, num_moving_agents=num_moving_drones, scenario_type=env_type, agent_summary=str(num_moving_drones))
     else:
         print("\nSimulation failed to find a solution.")
     

@@ -329,3 +329,286 @@ def save_trajectory_csv(agents_data: List[Dict], output_dir: Path) -> Path:
 				writer.writerow([time, x, y, vx, vy])
 	
 	return velocity_csv 
+
+# Standardized Environment Configuration
+# This module provides consistent environment layouts and visualization parameters
+# across all social navigation methods (CADRL, IMPC-DR, ORCA)
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.lines import Line2D
+import matplotlib.lines as mlines
+
+class StandardizedEnvironment:
+    """
+    Standardized environment configuration for social navigation methods.
+    Provides consistent grid sizes, obstacle layouts, and visualization parameters.
+    """
+    
+    # Standard grid dimensions (based on CADRL's larger grid for better visibility)
+    GRID_X_MIN = -6.0
+    GRID_X_MAX = 6.0
+    GRID_Y_MIN = -8.0
+    GRID_Y_MAX = 8.0
+    
+    # Standard agent parameters
+    DEFAULT_AGENT_RADIUS = 0.3  # Reduced from 0.5 to allow closer passing
+    DEFAULT_PREF_SPEED = 1.0
+    DEFAULT_COLLISION_DISTANCE = 0.2  # Reduced from 0.3 to allow closer passing
+    
+    # Standard colors for agents (matching CADRL's color scheme)
+    AGENT_COLORS = [
+        [0.8500, 0.3250, 0.0980],  # orange
+        [0.0, 0.4470, 0.7410],     # blue
+        [0.4660, 0.6740, 0.1880],  # green
+        [0.4940, 0.1840, 0.5560],  # purple
+        [0.9290, 0.6940, 0.1250],  # yellow
+        [0.3010, 0.7450, 0.9330],  # cyan
+        [0.6350, 0.0780, 0.1840],  # chocolate
+    ]
+    
+    # Standard visualization parameters
+    FIG_SIZE = (10, 8)
+    ANIMATION_FPS = 5
+    ANIMATION_INTERVAL = 150  # milliseconds
+    
+    @classmethod
+    def get_doorway_obstacles(cls):
+        """
+        Get standardized doorway obstacle layout.
+        Vertical wall at x=0 with gap from y=-2 to y=2.
+        """
+        wall_x = 0.0
+        gap_start = -2.0
+        gap_end = 2.0
+        
+        # Create wall segments above and below the gap
+        obstacle_ys = np.concatenate([
+            np.linspace(cls.GRID_Y_MIN, gap_start, 12),
+            np.linspace(gap_end, cls.GRID_Y_MAX, 12)
+        ])
+        
+        obstacles = [np.array([wall_x, y]) for y in obstacle_ys]
+        return obstacles
+    
+    @classmethod
+    def get_hallway_obstacles(cls):
+        """
+        Get standardized hallway obstacle layout.
+        Horizontal walls at y=-2 and y=2.
+        Optimized for performance with fewer obstacles.
+        """
+        bottom_wall_y = -2.0
+        top_wall_y = 2.0
+        
+        # Create bottom wall - reduced density for performance
+        bottom_wall_xs = np.linspace(cls.GRID_X_MIN, cls.GRID_X_MAX, 12)  # Reduced from 20 to 12
+        bottom_wall_positions = [np.array([x, bottom_wall_y]) for x in bottom_wall_xs]
+        
+        # Create top wall - reduced density for performance
+        top_wall_xs = np.linspace(cls.GRID_X_MIN, cls.GRID_X_MAX, 12)  # Reduced from 20 to 12
+        top_wall_positions = [np.array([x, top_wall_y]) for x in top_wall_xs]
+        
+        return bottom_wall_positions + top_wall_positions
+    
+    @classmethod
+    def get_intersection_obstacles(cls):
+        """
+        Get standardized intersection obstacle layout.
+        + shaped intersection with corridors centered at (0,0).
+        Optimized for performance with fewer obstacles.
+        """
+        corridor_center = 0.0
+        corridor_half_width = 2.0
+        
+        walls = []
+        
+        # Horizontal corridor walls - reduced density for performance
+        for x in np.linspace(cls.GRID_X_MIN, cls.GRID_X_MAX, 12):  # Reduced from 25 to 12
+            # Bottom wall of horizontal corridor
+            walls.append(np.array([x, corridor_center - corridor_half_width]))
+            # Top wall of horizontal corridor
+            walls.append(np.array([x, corridor_center + corridor_half_width]))
+        
+        # Vertical corridor walls - reduced density for performance
+        for y in np.linspace(cls.GRID_Y_MIN, cls.GRID_Y_MAX, 12):  # Reduced from 25 to 12
+            # Left wall of vertical corridor
+            walls.append(np.array([corridor_center - corridor_half_width, y]))
+            # Right wall of vertical corridor
+            walls.append(np.array([corridor_center + corridor_half_width, y]))
+        
+        # Remove walls in the intersection area itself
+        filtered_walls = []
+        intersection_min = corridor_center - corridor_half_width
+        intersection_max = corridor_center + corridor_half_width
+        
+        for wall_pos in walls:
+            x, y = wall_pos
+            # Keep wall if it's not in the central intersection area
+            if not (intersection_min <= x <= intersection_max and 
+                    intersection_min <= y <= intersection_max):
+                filtered_walls.append(wall_pos)
+        
+        return filtered_walls
+    
+    @classmethod
+    def get_standard_agent_positions(cls, env_type, num_agents=2):
+        """
+        Get standardized agent start and goal positions for each environment type.
+        """
+        if env_type == 'doorway':
+            # Agents moving through doorway - offset slightly to avoid head-on collision
+            positions = [
+                {'start': [-3.0, -0.5], 'goal': [3.0, 0.5]},  # Lower path
+                {'start': [3.0, 0.5], 'goal': [-3.0, -0.5]}   # Upper path
+            ]
+        elif env_type == 'hallway':
+            # Agents moving along hallway - offset to avoid head-on collision
+            corridor_center = 0.0
+            positions = [
+                {'start': [-4.0, corridor_center - 0.3], 'goal': [4.0, corridor_center + 0.3]},  # Lower path
+                {'start': [4.0, corridor_center + 0.3], 'goal': [-4.0, corridor_center - 0.3]}   # Upper path
+            ]
+        elif env_type == 'intersection':
+            # Agents moving through intersection - offset to avoid collision at center
+            corridor_center = 0.0
+            positions = [
+                {'start': [-4.0, corridor_center - 0.5], 'goal': [4.0, corridor_center + 0.5]},  # Offset horizontal
+                {'start': [corridor_center - 0.5, -4.0], 'goal': [corridor_center + 0.5, 4.0]}   # Offset vertical
+            ]
+        else:
+            # Generic positions
+            positions = [
+                {'start': [-3.0, -3.0], 'goal': [3.0, 3.0]},
+                {'start': [3.0, 3.0], 'goal': [-3.0, -3.0]}
+            ]
+        
+        return positions[:num_agents]
+    
+    @classmethod
+    def create_standard_plot(cls, env_type, show_obstacles=True):
+        """
+        Create a standardized matplotlib plot with proper grid and obstacles.
+        """
+        fig, ax = plt.subplots(figsize=cls.FIG_SIZE)
+        
+        # Set grid limits
+        ax.set_xlim(cls.GRID_X_MIN, cls.GRID_X_MAX)
+        ax.set_ylim(cls.GRID_Y_MIN, cls.GRID_Y_MAX)
+        ax.set_aspect('equal')
+        ax.grid(True, alpha=0.3)
+        
+        # Add obstacles if requested
+        if show_obstacles:
+            if env_type == 'doorway':
+                obstacles = cls.get_doorway_obstacles()
+            elif env_type == 'hallway':
+                obstacles = cls.get_hallway_obstacles()
+            elif env_type == 'intersection':
+                obstacles = cls.get_intersection_obstacles()
+            else:
+                obstacles = []
+            
+            # Plot obstacles as gray circles
+            for obs in obstacles:
+                circle = patches.Circle(obs, radius=cls.DEFAULT_AGENT_RADIUS, 
+                                      facecolor='gray', edgecolor='black', alpha=0.7)
+                ax.add_patch(circle)
+        
+        # Set labels
+        ax.set_xlabel('x (m)')
+        ax.set_ylabel('y (m)')
+        
+        return fig, ax
+    
+    @classmethod
+    def create_standard_legend(cls, num_agents):
+        """
+        Create standardized legend matching CADRL's style.
+        """
+        legend_handles = []
+        legend_labels = []
+        
+        # Obstacle legend
+        legend_handles.append(mlines.Line2D([], [], color='gray', marker='o', linestyle='None',
+                                          markersize=10, markerfacecolor='gray', markeredgecolor='black'))
+        legend_labels.append('Obstacle')
+        
+        # Agent legends
+        for i in range(num_agents):
+            color = cls.AGENT_COLORS[i % len(cls.AGENT_COLORS)]
+            legend_handles.append(mlines.Line2D([], [], color=color, marker='o', linestyle='None',
+                                              markersize=10, markerfacecolor=color, markeredgecolor='black'))
+            legend_labels.append(f'Agent {i+1}')
+        
+        # Goal legend
+        legend_handles.append(mlines.Line2D([], [], color='green', marker='*', linestyle='None',
+                                          markersize=12, markerfacecolor='green', markeredgecolor='none'))
+        legend_labels.append('Goal')
+        
+        return legend_handles, legend_labels
+    
+    @classmethod
+    def plot_agent_trajectory(cls, ax, positions, agent_id, show_trajectory=True, show_timestamps=True):
+        """
+        Plot agent trajectory with standardized styling.
+        """
+        if len(positions) == 0:
+            return
+        
+        color = cls.AGENT_COLORS[agent_id % len(cls.AGENT_COLORS)]
+        
+        # Plot trajectory line
+        if show_trajectory and len(positions) > 1:
+            positions_array = np.array(positions)
+            ax.plot(positions_array[:, 0], positions_array[:, 1], 
+                   color=color, linewidth=2, alpha=0.7)
+        
+        # Plot start position as square
+        start_pos = positions[0]
+        ax.scatter(start_pos[0], start_pos[1], marker='s', s=200, 
+                  edgecolor='black', facecolor=color, zorder=3)
+        
+        # Plot current position as circle
+        current_pos = positions[-1]
+        circle = patches.Circle(current_pos, radius=cls.DEFAULT_AGENT_RADIUS,
+                              facecolor=color, edgecolor='black', alpha=0.8)
+        ax.add_patch(circle)
+        
+        # Add timestamps if requested
+        if show_timestamps and len(positions) > 5:
+            # Add timestamp every few steps
+            for i in range(0, len(positions), max(1, len(positions)//5)):
+                pos = positions[i]
+                ax.text(pos[0] - 0.15, pos[1] + 0.1, f'{i}', 
+                       color=color, fontsize=8, alpha=0.7)
+    
+    @classmethod
+    def plot_goal(cls, ax, goal_pos, agent_id):
+        """
+        Plot goal position with standardized styling.
+        """
+        color = cls.AGENT_COLORS[agent_id % len(cls.AGENT_COLORS)]
+        ax.scatter(goal_pos[0], goal_pos[1], marker='*', s=300,
+                  edgecolor='black', facecolor=color, zorder=4)
+
+# Convenience functions for backward compatibility
+def get_standardized_obstacles(env_type):
+    """Get obstacles for the specified environment type."""
+    if env_type == 'doorway':
+        return StandardizedEnvironment.get_doorway_obstacles()
+    elif env_type == 'hallway':
+        return StandardizedEnvironment.get_hallway_obstacles()
+    elif env_type == 'intersection':
+        return StandardizedEnvironment.get_intersection_obstacles()
+    else:
+        return []
+
+def get_standardized_positions(env_type, num_agents=2):
+    """Get standard agent positions for the specified environment type."""
+    return StandardizedEnvironment.get_standard_agent_positions(env_type, num_agents)
+
+def create_standardized_plot(env_type, show_obstacles=True):
+    """Create a standardized plot for the specified environment type."""
+    return StandardizedEnvironment.create_standard_plot(env_type, show_obstacles) 

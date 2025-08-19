@@ -43,11 +43,11 @@ class uav():
         # input
         self.u=np.zeros(self.D)
 
-        # maximum acc
-        self.Umax=1.5
+        # maximum acc - optimized for performance
+        self.Umax=1.2  # Balanced for performance vs precision
 
-        # maximum velocity
-        self.Vmax=1.0
+        # maximum velocity - optimized for performance
+        self.Vmax=1.0  # Balanced for performance vs precision
 
         # warning band width
         self.epsilon=SET.epsilon

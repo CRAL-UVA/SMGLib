@@ -36,6 +36,11 @@ def GET_cons(agent,obstacle_list, wall_collision_multiplier=2.0):
             else:
                 p_j=P_j[t]
 
+            # Performance optimization: Skip collision check if obstacle is too far away
+            distance = np.linalg.norm(p - p_j)
+            if distance > 4.0:  # Skip if obstacle is more than 4 units away
+                continue
+
             # Determine if this is a collision with a stationary robot (wall)
             # Stationary robots have zero velocity and their position doesn't change
             is_stationary_robot = False

@@ -684,7 +684,8 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
         # Save
         animations_dir = root_dir / 'logs' / 'Social-CADRL' / 'animations'
         animations_dir.mkdir(parents=True, exist_ok=True)
-        filename = animations_dir / f"{scenario_type}_fallback.gif"
+        agent_count = len(dynamic_agents) if dynamic_agents else len(agents)
+        filename = animations_dir / f"{scenario_type}_{agent_count}agents.gif"
         anim.save(str(filename), writer='pillow')
         print(f"Animation saved as {filename}")
         plt.close(fig)

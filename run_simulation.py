@@ -699,8 +699,8 @@ def run_social_orca(config_file, num_robots):
         return
 
 def run_social_impc_dr(env_type='doorway', verbose=False):
-    """Run Social-IMPC-DR by switching to its directory and calling app2.py."""
-    print("\nRunning Social-IMPC-DR simulation...")
+    """Run Social-IMPC-DR by switching to its directory and calling app2_standardized.py."""
+    print("\nRunning Social-IMPC-DR simulation with standardized environment...")
     
     # Create IMPC-DR-specific working directory
     impc_dir = Path("src/methods/Social-IMPC-DR").resolve()  # Get absolute path
@@ -727,7 +727,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
             print("✓ IMPC-DR environment setup complete!")
             print("="*50)
         
-        # Get the full path to the app2.py script
+        # Use the original script (will be modified to use standardized environment)
         script_path = impc_dir / "app2.py"
         
         # Verify the script exists

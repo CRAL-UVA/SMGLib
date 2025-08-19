@@ -692,7 +692,8 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
     else:
         agent_summary += "_default"
     
-    filename = str(animations_dir / f"{scenario_type}_{agent_summary}.gif")
+    agent_count = len(dynamic_agents) if dynamic_agents else len(agents)
+    filename = str(animations_dir / f"{scenario_type}_{agent_count}agents.gif")
     
     # Save animation
     anim.save(filename, writer='pillow')
