@@ -356,18 +356,54 @@ def build_social_orca():
         print("✓ Build tools found")
         print("✓ Starting compilation...")
         
-        # Run make
-        result = subprocess.run(["make"], capture_output=True, text=True)
+        # Try building with explicit target first
+        print("Running: make build/single_test")
+        result = subprocess.run(["make", "build/single_test"], capture_output=True, text=True)
         
         if result.returncode == 0:
-            print("✓ Social-ORCA compiled successfully!")
-            print("="*50)
-            return True
+            # Verify that the executable was actually created
+            if executable.exists():
+                print("✓ Social-ORCA compiled successfully!")
+                print(f"✓ Executable created at: {executable}")
+                print("="*50)
+                return True
+            else:
+                print("✗ Compilation appeared successful but executable not found!")
+                print(f"Expected executable at: {executable}")
+                print("This may indicate a build system issue.")
+                if result.stdout:
+                    print(f"Build output: {result.stdout}")
+                print("="*50)
+                return False
         else:
-            print("✗ Compilation failed!")
-            print(f"Error output: {result.stderr}")
-            print("="*50)
-            return False
+            # Try fallback to just 'make' if explicit target failed
+            print("Explicit target failed, trying fallback: make")
+            result = subprocess.run(["make"], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                # Verify that the executable was actually created
+                if executable.exists():
+                    print("✓ Social-ORCA compiled successfully (fallback)!")
+                    print(f"✓ Executable created at: {executable}")
+                    print("="*50)
+                    return True
+                else:
+                    print("✗ Compilation appeared successful but executable not found!")
+                    print(f"Expected executable at: {executable}")
+                    print("This may indicate a build system issue.")
+                    if result.stdout:
+                        print(f"Build output: {result.stdout}")
+                    print("="*50)
+                    return False
+            else:
+                print("✗ Compilation failed!")
+                print(f"Return code: {result.returncode}")
+                if result.stdout:
+                    print(f"Build output: {result.stdout}")
+                if result.stderr:
+                    print(f"Error output: {result.stderr}")
+                print("="*50)
+                return False
             
     except Exception as e:
         print(f"✗ Error during build process: {e}")

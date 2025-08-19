@@ -116,6 +116,36 @@ Install the packages
 
 ```pip install -r requirements.txt```
 
+## Troubleshooting
+
+### Social-ORCA Build Issues
+
+If you encounter a "single_test not found" error when running Social-ORCA simulations, this indicates that the C++ executable wasn't properly built. The build process has been improved to handle this automatically, but if you still encounter issues:
+
+1. **Manual Build**: Navigate to the Social-ORCA directory and build manually:
+   ```bash
+   cd src/methods/Social-ORCA
+   make clean
+   make build/single_test
+   ```
+
+2. **Test Build Process**: Run the test script to verify the build process:
+   ```bash
+   python test_build.py
+   ```
+
+3. **Requirements**: Ensure you have the following build tools installed:
+   - `g++` (GNU C++ compiler)
+   - `make` (GNU Make)
+   - `pthread` library (usually included with gcc)
+
+4. **Common Issues**:
+   - **Permission Denied**: Make sure the build directory is writable
+   - **Compiler Not Found**: Install build-essential package (Ubuntu/Debian) or equivalent
+   - **Missing Dependencies**: The build process will show specific missing dependencies
+
+The build process now includes better error reporting and fallback mechanisms to help diagnose and resolve build issues.
+
 # Evaluation 
 
 To evaluate the experiments and visualize the trajectories run the evaluation script
