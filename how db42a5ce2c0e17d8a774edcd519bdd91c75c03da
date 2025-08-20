@@ -1,0 +1,335 @@
+[1mdiff --git a/run_simulation.py b/run_simulation.py[m
+[1mindex 0ad807de..f262a484 100644[m
+[1m--- a/run_simulation.py[m
+[1m+++ b/run_simulation.py[m
+[36m@@ -139,13 +139,14 @@[m [mdef generate_orca_csvs(log_file, output_dir):[m
+     [m
+     return velocity_csv[m
+ [m
+[31m-def evaluate_velocities(velocity_csv):[m
+[32m+[m[32mdef evaluate_velocities(velocity_csv, verbose=True):[m
+     """Evaluate the velocities using the evaluate module."""[m
+     # Read the velocity CSV[m
+     data = pd.read_csv(velocity_csv)[m
+     [m
+     # Process each robot's velocities[m
+     robot_ids = [][m
+[32m+[m[32m    velocity_metrics = {}[m
+     for col in data.columns:[m
+         if col.endswith('_vx'):[m
+             robot_id = col.split('_')[1][m
+[36m@@ -164,12 +165,15 @@[m [mdef evaluate_velocities(velocity_csv):[m
+         abs_diffs = np.abs(diffs)[m
+         sum_abs_diffs = np.sum(abs_diffs)[m
+         [m
+[31m-        # Print the average delta velocity[m
+[31m-        print("*" * 65)[m
+[31m-        print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")[m
+[31m-        print("*" * 65)[m
+[32m+[m[32m        velocity_metrics[robot_id] = sum_abs_diffs[m
+[32m+[m[41m        [m
+[32m+[m[32m        if verbose:[m
+[32m+[m[32m            # Print the average delta velocity[m
+[32m+[m[32m            print("*" * 65)[m
+[32m+[m[32m            print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")[m
+[32m+[m[32m            print("*" * 65)[m
+     [m
+[31m-    return sum_abs_diffs  # Return the last calculated value[m
+[32m+[m[32m    return velocity_metrics[m
+ [m
+ def get_num_robots_from_config(config_file):[m
+     """Extract number of robots from config file."""[m
+[36m@@ -372,7 +376,7 @@[m [mdef build_social_orca():[m
+     finally:[m
+         os.chdir(original_dir)[m
+ [m
+[31m-def run_social_orca(config_file, num_robots):[m
+[32m+[m[32mdef run_social_orca(config_file, num_robots, verbose=False):[m
+     print("\nRunning Social-ORCA Simulation")[m
+     print("=============================")[m
+     [m
+[36m@@ -434,12 +438,15 @@[m [mdef run_social_orca(config_file, num_robots):[m
+         print(f"\nAnimation generated at: {animation_path}")[m
+         [m
+         # Evaluate trajectories[m
+[31m-        print("\nEvaluating trajectories...")[m
+[32m+[m[32m        if verbose:[m
+[32m+[m[32m            print("\nEvaluating trajectories...")[m
+         trajectory_dir = output_dir[m
+         trajectory_files = list(trajectory_dir.glob("robot_*_trajectory.csv"))[m
+         [m
+[32m+[m[32m        trajectory_metrics = {}[m
+         for i, traj_file in enumerate(trajectory_files):[m
+[31m-            print(f"\nEvaluating Robot {i} trajectory:")[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print(f"\nEvaluating Robot {i} trajectory:")[m
+             data = pd.read_csv(traj_file)[m
+             [m
+             # Extract coordinates[m
+[36m@@ -455,13 +462,19 @@[m [mdef run_social_orca(config_file, num_robots):[m
+             nominal_trajectory = np.column_stack((nominal_x, nominal_y))[m
+             hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0][m
+             [m
+[31m-            print("*" * 65)[m
+[31m-            print(f"Robot {i} Path Deviation Metrics:")[m
+[31m-            print(f"L2 Norm: {l2_norm:.4f}")[m
+[31m-            print(f"Hausdorff distance: {hausdorff_dist:.4f}")[m
+[31m-            print("*" * 65)[m
+[32m+[m[32m            trajectory_metrics[str(i)] = {[m
+[32m+[m[32m                'l2_norm': l2_norm,[m
+[32m+[m[32m                'hausdorff_dist': hausdorff_dist[m
+[32m+[m[32m            }[m
+[32m+[m[41m            [m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print("*" * 65)[m
+[32m+[m[32m                print(f"Robot {i} Path Deviation Metrics:")[m
+[32m+[m[32m                print(f"L2 Norm: {l2_norm:.4f}")[m
+[32m+[m[32m                print(f"Hausdorff distance: {hausdorff_dist:.4f}")[m
+[32m+[m[32m                print("*" * 65)[m
+         [m
+[31m-        evaluate_velocities(velocity_csv)[m
+[32m+[m[32m        velocity_metrics = evaluate_velocities(velocity_csv, verbose)[m
+         [m
+         # After evaluating trajectories, compute Makespan Ratios for Social-ORCA[m
+         ttg_list = [][m
+[36m@@ -488,18 +501,24 @@[m [mdef run_social_orca(config_file, num_robots):[m
+             writer = csv.writer(file)[m
+             writer.writerow(["robot_id", "ttg"])[m
+             writer.writerows(ttg_list)[m
+[31m-        # Compute and print Makespan Ratios[m
+[32m+[m[32m        # Compute TTG metrics for clean display[m
+[32m+[m[32m        ttg_metrics = {}[m
+         ttgs = [row[1] for row in ttg_list][m
+         fastest_ttg = min(ttgs)[m
+[31m-        print("*" * 65)[m
+[31m-        print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")[m
+         for robot_id, ttg in ttg_list:[m
+[31m-            mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')[m
+[31m-            print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f}")[m
+[31m-        print("*" * 65)[m
+[32m+[m[32m            ttg_metrics[str(robot_id)] = ttg[m
+[32m+[m[41m        [m
+[32m+[m[32m        if verbose:[m
+[32m+[m[32m            print("*" * 65)[m
+[32m+[m[32m            print("Makespan Ratios (MR_i = TTG_i / TTG_fastest):")[m
+[32m+[m[32m            for robot_id, ttg in ttg_list:[m
+[32m+[m[32m                mr = ttg / fastest_ttg if fastest_ttg > 0 else float('inf')[m
+[32m+[m[32m                print(f"Robot {robot_id}: TTG = {ttg}, MR = {mr:.4f}")[m
+[32m+[m[32m            print("*" * 65)[m
+         [m
+         # Flow Rate calculation for ORCA[m
+[31m-        print("\nCalculating Flow Rate...")[m
+[32m+[m[32m        if verbose:[m
+[32m+[m[32m            print("\nCalculating Flow Rate...")[m
+         [m
+         # Parse the log file to extract makespan and completion metrics[m
+         tree = ET.parse(latest_log)[m
+[36m@@ -512,7 +531,8 @@[m [mdef run_social_orca(config_file, num_robots):[m
+             makespan_str = summary.get('makespan')[m
+             if makespan_str:[m
+                 total_makespan = float(makespan_str)[m
+[31m-                print(f"Total simulation time: {total_makespan:.2f}s")[m
+[32m+[m[32m                if verbose:[m
+[32m+[m[32m                    print(f"Total simulation time: {total_makespan:.2f}s")[m
+         [m
+         # Extract individual agent completion times and success status from log[m
+         log_section = root.find('log')[m
+[36m@@ -541,7 +561,8 @@[m [mdef run_social_orca(config_file, num_robots):[m
+             agents_reached_goals = [data for data in agent_completion_data if data['reached_goal']][m
+             agents_failed = [data for data in agent_completion_data if not data['reached_goal']][m
+             [m
+[31m-            print(f"Agents that reached goals: {len(agents_reached_goals)}/{len(agent_completion_data)}")[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print(f"Agents that reached goals: {len(agents_reached_goals)}/{len(agent_completion_data)}")[m
+             [m
+             if agents_reached_goals:[m
+                 # Get the completion time of the last agent to reach its goal[m
+[36m@@ -551,30 +572,35 @@[m [mdef run_social_orca(config_file, num_robots):[m
+                 if len(agents_reached_goals) == len(agent_completion_data):[m
+                     # All agents reached their goals - use the time when the last one finished[m
+                     makespan = latest_goal_completion[m
+[31m-                    print(f"All agents reached goals. Make-span: {makespan:.2f}s")[m
+[31m-                    print(f"Individual completion times: {[f'{t:.2f}s' for t in goal_completion_times]}")[m
+[32m+[m[32m                    if verbose:[m
+[32m+[m[32m                        print(f"All agents reached goals. Make-span: {makespan:.2f}s")[m
+[32m+[m[32m                        print(f"Individual completion times: {[f'{t:.2f}s' for t in goal_completion_times]}")[m
+                 else:[m
+                     # Some agents didn't reach goals - use total simulation time for fairness[m
+                     all_completion_times = [data['completion_time'] for data in agent_completion_data][m
+                     makespan = max(all_completion_times) if all_completion_times else (total_makespan or latest_goal_completion)[m
+[31m-                    print(f"Not all agents reached goals. Using total simulation time: {makespan:.2f}s")[m
+[31m-                    print(f"Successful agents completed at: {[f'{t:.2f}s' for t in goal_completion_times]}")[m
+[31m-                    if agents_failed:[m
+[31m-                        failed_times = [data['completion_time'] for data in agents_failed][m
+[31m-                        print(f"Failed agents stopped at: {[f'{t:.2f}s' for t in failed_times]}")[m
+[32m+[m[32m                    if verbose:[m
+[32m+[m[32m                        print(f"Not all agents reached goals. Using total simulation time: {makespan:.2f}s")[m
+[32m+[m[32m                        print(f"Successful agents completed at: {[f'{t:.2f}s' for t in goal_completion_times]}")[m
+[32m+[m[32m                        if agents_failed:[m
+[32m+[m[32m                            failed_times = [data['completion_time'] for data in agents_failed][m
+[32m+[m[32m                            print(f"Failed agents stopped at: {[f'{t:.2f}s' for t in failed_times]}")[m
+             else:[m
+                 # No agents reached their goals - use total simulation time[m
+                 all_completion_times = [data['completion_time'] for data in agent_completion_data][m
+                 makespan = max(all_completion_times) if all_completion_times else total_makespan[m
+[31m-                print(f"No agents reached their goals. Make-span: {makespan:.2f}s")[m
+[32m+[m[32m                if verbose:[m
+[32m+[m[32m                    print(f"No agents reached their goals. Make-span: {makespan:.2f}s")[m
+         elif total_makespan:[m
+             makespan = total_makespan[m
+[31m-            print(f"Using total simulation time as make-span: {makespan:.2f}s")[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print(f"Using total simulation time as make-span: {makespan:.2f}s")[m
+         else:[m
+             # Fallback: calculate makespan from trajectory data[m
+             max_steps = max(len(agent['positions']) for agent in agents_data)[m
+             makespan = max_steps * time_step[m
+[31m-            print(f"Make-span calculated from trajectory data: {makespan:.2f}s")[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print(f"Make-span calculated from trajectory data: {makespan:.2f}s")[m
+         [m
+         # Determine gap width based on config file environment[m
+         # ORCA uses grid coordinates (0-64), so we need to calculate actual gap widths[m
+[36m@@ -677,22 +703,56 @@[m [mdef run_social_orca(config_file, num_robots):[m
+                 flow_rate = num_robots / (gap_width * makespan)[m
+                 flow_rate_type = "Standard calculation (goal status unknown)"[m
+             [m
+[31m-            print("*" * 65)[m
+[31m-            print(f"ORCA Flow Rate Calculation:")[m
+[31m-            print(f"Scenario: {flow_rate_type}")[m
+[31m-            print(f"Total agents: {num_robots}")[m
+[31m-            if agent_completion_data and len([data for data in agent_completion_data if data['reached_goal']]) != num_robots:[m
+[31m-                successful_agents = len([data for data in agent_completion_data if data['reached_goal']])[m
+[31m-                print(f"Successful agents: {successful_agents}")[m
+[31m-            print(f"Gap width (z): {gap_width} grid units")[m
+[31m-            print(f"Make-span (T): {makespan:.2f}s")[m
+[31m-            print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")[m
+[31m-            print("*" * 65)[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print("*" * 65)[m
+[32m+[m[32m                print(f"ORCA Flow Rate Calculation:")[m
+[32m+[m[32m                print(f"Scenario: {flow_rate_type}")[m
+[32m+[m[32m                print(f"Total agents: {num_robots}")[m
+[32m+[m[32m                if agent_completion_data and len([data for data in agent_completion_data if data['reached_goal']]) != num_robots:[m
+[32m+[m[32m                    successful_agents = len([data for data in agent_completion_data if data['reached_goal']])[m
+[32m+[m[32m                    print(f"Successful agents: {successful_agents}")[m
+[32m+[m[32m                print(f"Gap width (z): {gap_width} grid units")[m
+[32m+[m[32m                print(f"Make-span (T): {makespan:.2f}s")[m
+[32m+[m[32m                print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")[m
+[32m+[m[32m                print("*" * 65)[m
+         else:[m
+[31m-            print("*" * 65)[m
+[31m-            print("Flow Rate: Could not compute (invalid make-span or gap width)")[m
+[31m-            print(f"Make-span: {makespan:.2f}s, Gap width: {gap_width}")[m
+[31m-            print("*" * 65)[m
+[32m+[m[32m            flow_rate = 0.0[m
+[32m+[m[32m            if verbose:[m
+[32m+[m[32m                print("*" * 65)[m
+[32m+[m[32m                print("Flow Rate: Could not compute (invalid make-span or gap width)")[m
+[32m+[m[32m                print(f"Make-span: {makespan:.2f}s, Gap width: {gap_width}")[m
+[32m+[m[32m                print("*" * 65)[m
+[32m+[m[41m        [m
+[32m+[m[32m        # Calculate success rate[m
+[32m+[m[32m        if agent_completion_data:[m
+[32m+[m[32m            successful_count = len([data for data in agent_completion_data if data['reached_goal']])[m
+[32m+[m[32m            success_rate = (successful_count / len(agent_completion_data)) * 100.0[m
+[32m+[m[32m        else:[m
+[32m+[m[32m            success_rate = 0.0[m
+[32m+[m[41m        [m
+[32m+[m[32m        # Display clean metrics if not in verbose mode[m
+[32m+[m[32m        if not verbose:[m
+[32m+[m[32m            # Extract environment from config path[m
+[32m+[m[32m            config_name = str(config_path).lower()[m
+[32m+[m[32m            if 'doorway' in config_name:[m
+[32m+[m[32m                environment = 'doorway'[m
+[32m+[m[32m            elif 'hallway' in config_name:[m
+[32m+[m[32m                environment = 'hallway'[m
+[32m+[m[32m            elif 'intersection' in config_name:[m
+[32m+[m[32m                environment = 'intersection'[m
+[32m+[m[32m            else:[m
+[32m+[m[32m                environment = 'unknown'[m
+[32m+[m[41m            [m
+[32m+[m[32m            display_clean_orca_metrics([m
+[32m+[m[32m                trajectory_metrics,[m
+[32m+[m[32m                velocity_metrics,[m
+[32m+[m[32m                ttg_metrics,[m
+[32m+[m[32m                flow_rate,[m
+[32m+[m[32m                makespan,[m
+[32m+[m[32m                success_rate,[m
+[32m+[m[32m                environment,[m
+[32m+[m[32m                num_robots[m
+[32m+[m[32m            )[m
+             [m
+     except Exception as e:[m
+         print(f"Error processing trajectories: {e}")[m
+[36m@@ -1177,6 +1237,38 @@[m [mdef display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics[m
+         [m
+         print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")[m
+ [m
+[32m+[m[32mdef display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):[m
+[32m+[m[32m    """Display ORCA metrics in clean minimal format."""[m
+[32m+[m[32m    print("\nSOCIAL-ORCA RESULTS")[m
+[32m+[m[41m    [m
+[32m+[m[32m    # Calculate successful agents count from ttg_metrics[m
+[32m+[m[32m    successful_count = sum(1 for ttg in ttg_metrics.values() if ttg < float('inf'))[m
+[32m+[m[41m    [m
+[32m+[m[32m    print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")[m
+[32m+[m[32m    print()[m
+[32m+[m[32m    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")[m
+[32m+[m[41m    [m
+[32m+[m[32m    # Get sorted robot IDs for consistent display[m
+[32m+[m[32m    robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))[m
+[32m+[m[41m    [m
+[32m+[m[32m    for robot_id in robot_ids:[m
+[32m+[m[32m        # Get metrics for this robot[m
+[32m+[m[32m        ttg = ttg_metrics.get(robot_id, float('inf'))[m
+[32m+[m[32m        # Calculate MR (need fastest TTG for calculation)[m
+[32m+[m[32m        finite_ttgs = [t for t in ttg_metrics.values() if t < float('inf')][m
+[32m+[m[32m        fastest_ttg = min(finite_ttgs) if finite_ttgs else 1[m
+[32m+[m[32m        mr = ttg / fastest_ttg if ttg != float('inf') and fastest_ttg > 0 else float('inf')[m
+[32m+[m[41m        [m
+[32m+[m[32m        avg_delta_v = velocity_metrics.get(robot_id, 0.0)[m
+[32m+[m[32m        path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)[m
+[32m+[m[32m        hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)[m
+[32m+[m[41m        [m
+[32m+[m[32m        # Handle infinite MR (when robot didn't reach goal)[m
+[32m+[m[32m        mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"[m
+[32m+[m[32m        ttg_str = "∞" if ttg == float('inf') else str(ttg)[m
+[32m+[m[41m        [m
+[32m+[m[32m        print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")[m
+[32m+[m
+ def generate_config(env_type, num_robots, robot_positions):[m
+     """Generate a configuration file for the simulation."""[m
+     root = ET.Element('root')[m
+[36m@@ -1529,6 +1621,22 @@[m [mdef main():[m
+             env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}[m
+             env_type = env_types[env_choice][m
+             [m
+[32m+[m[32m            # Ask for output format preference[m
+[32m+[m[32m            print("\nOutput format options:")[m
+[32m+[m[32m            print("1. Clean (minimal text output)")[m
+[32m+[m[32m            print("2. Verbose (detailed output with explanations)")[m
+[32m+[m[41m            [m
+[32m+[m[32m            while True:[m
+[32m+[m[32m                try:[m
+[32m+[m[32m                    verbose_choice = int(input("\nEnter output format (1-2): "))[m
+[32m+[m[32m                    if verbose_choice in [1, 2]:[m
+[32m+[m[32m                        break[m
+[32m+[m[32m                    print("Invalid choice! Please enter 1 or 2.")[m
+[32m+[m[32m                except ValueError:[m
+[32m+[m[32m                    print("Invalid input! Please enter a number.")[m
+[32m+[m[41m            [m
+[32m+[m[32m            verbose_mode = (verbose_choice == 2)[m
+[32m+[m[41m            [m
+             # Ask for number of robots[m
+             while True:[m
+                 try:[m
+[36m@@ -1608,7 +1716,7 @@[m [mdef main():[m
+             config_file = generate_config(env_type, num_robots, robot_positions)[m
+             [m
+             # Run the simulation[m
+[31m-            run_social_orca(config_file, num_robots)[m
+[32m+[m[32m            run_social_orca(config_file, num_robots, verbose=verbose_mode)[m
+         elif choice == 2:[m
+             # Ask for environment type for IMPC-DR[m
+             print("\nAvailable environments:")[m

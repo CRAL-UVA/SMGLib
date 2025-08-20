@@ -184,8 +184,9 @@ def get_num_robots_from_config(config_file):
 
 def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None):
     """Generate an animation of robot movements."""
-    # Create animations directory in the logs folder
-    animations_dir = output_dir.parent / "animations"
+    # Create animations directory in the main SMGLib logs folder
+    base_dir = Path(__file__).parent
+    animations_dir = base_dir / "logs" / "Social-ORCA" / "animations"
     animations_dir.mkdir(parents=True, exist_ok=True)
     
     # Set up the figure and axis

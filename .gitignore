@@ -130,7 +130,6 @@ dmypy.json
 
 # Simulation specific files
 *.avi
-*.gif
 *.mp4
 video_recordings/
 Video recordings/
@@ -138,12 +137,23 @@ savefig/
 Trajectrory/
 path_deviation/
 
-# Generated data files
+# Generated data files (but allow logs folder)
 *.csv
 *.txt
 !requirements.txt
 !README.txt
 !LICENSE.txt
+
+# Allow logs folder structure but ignore most animation/trajectory files
+# Keep only one example file in each subfolder
+!logs/
+!logs/*/
+!logs/*/animations/
+!logs/*/trajectories/
+logs/*/animations/*.gif
+!logs/*/animations/demo_*.gif
+logs/*/trajectories/*.csv
+!logs/*/trajectories/ttg_*.csv
 
 # Log files
 *.log
