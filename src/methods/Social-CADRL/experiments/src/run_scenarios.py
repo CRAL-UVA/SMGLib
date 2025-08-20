@@ -89,19 +89,19 @@ def create_base_hallway_agents():
     return agents
 
 def create_base_doorway_agents():
-    """Create the base agents for the doorway scenario (horizontal configuration)"""
+    """Create the base agents for the doorway scenario (vertical configuration)"""
     agents = []
-    # Add static agents forming horizontal wall with doorway gap
-    # Single horizontal line at y=0.0 with gap in the middle
+    # Add static agents forming vertical wall with doorway gap
+    # Single vertical line at x=0.0 with gap in the middle
     positions = []
     
-    # Left side of horizontal wall: x from -9.0 to -2.0
-    for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-        positions.append((x, 0.0))
+    # Bottom side of vertical wall: y from -9.0 to -2.0
+    for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+        positions.append((0.0, y))
     
-    # Right side of horizontal wall: x from 2.0 to 9.0  
-    for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-        positions.append((x, 0.0))
+    # Top side of vertical wall: y from 2.0 to 9.0  
+    for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+        positions.append((0.0, y))
     
     for i, (x, y) in enumerate(positions):
         agents.append(Agent(
@@ -130,11 +130,11 @@ def get_obstacle_positions(scenario_type):
         ]
     elif scenario_type == 'doorway':
         obstacles = []
-        # Create horizontal wall aligned across y=0 with same spacing
-        for x in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
-            obstacles.append((x, 0.0))
-        for x in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
-            obstacles.append((x, 0.0))
+        # Create vertical wall aligned across x=0 with gap in middle
+        for y in [-9.0, -8.0, -7.0, -6.0, -5.0, -4.0, -3.0, -2.0]:
+            obstacles.append((0.0, y))
+        for y in [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]:
+            obstacles.append((0.0, y))
         return obstacles
     return []
 
@@ -179,44 +179,44 @@ def get_default_values(scenario_type):
             'heading': np.pi
         }
     elif scenario_type == 'hallway':
-        # First agent: left to right
+        # First agent: left to right (matching IMPC-DR defaults)
         defaults['start_x'] = -4.0
-        defaults['start_y'] = 0.0
+        defaults['start_y'] = -0.3
         defaults['goal_x'] = 4.0
-        defaults['goal_y'] = 0.0
+        defaults['goal_y'] = 0.3
         defaults['radius'] = 0.5
         defaults['pref_speed'] = 1.0
         defaults['heading'] = 0.0
         
-        # Second agent: right to left
+        # Second agent: right to left (matching IMPC-DR defaults)
         defaults['agent2'] = {
             'start_x': 4.0,
-            'start_y': 0.0,
+            'start_y': 0.3,
             'goal_x': -4.0,
-            'goal_y': 0.0,
+            'goal_y': -0.3,
             'radius': 0.5,
             'pref_speed': 1.0,
             'heading': np.pi
         }
     elif scenario_type == 'doorway':
-        # First agent: bottom going up through horizontal doorway
-        defaults['start_x'] = 0.0
-        defaults['start_y'] = -3.0
-        defaults['goal_x'] = 0.0
-        defaults['goal_y'] = 3.0
+        # First agent: left going right through vertical doorway
+        defaults['start_x'] = -3.0
+        defaults['start_y'] = 0.0
+        defaults['goal_x'] = 3.0
+        defaults['goal_y'] = 0.0
         defaults['radius'] = 0.5
         defaults['pref_speed'] = 1.0
-        defaults['heading'] = np.pi/2
+        defaults['heading'] = 0.0
         
-        # Second agent: top going down through horizontal doorway
+        # Second agent: right going left through vertical doorway
         defaults['agent2'] = {
-            'start_x': 0.0,
-            'start_y': 3.0,
-            'goal_x': 0.0,
-            'goal_y': -3.0,
+            'start_x': 3.0,
+            'start_y': 0.0,
+            'goal_x': -3.0,
+            'goal_y': 0.0,
             'radius': 0.5,
             'pref_speed': 1.0,
-            'heading': -np.pi/2
+            'heading': np.pi
         }
     
     return defaults
@@ -264,6 +264,72 @@ def get_num_agents():
         except ValueError:
             print("Invalid input. Please enter a number.")
 
+def get_standardized_cadrl_config(scenario_type):
+    """Get standardized CADRL configuration similar to IMPC-DR format."""
+    print("Setting up CADRL Environment using standardized configuration...")
+    
+    # Get number of moving agents
+    num_agents = get_float_input("Enter number of moving agents (default: 2)", 2)
+    num_agents = int(num_agents)
+    
+    print(f"\nConfigure moving agents:")
+    
+    # Print scenario-specific instructions
+    if scenario_type == 'hallway':
+        print("\nHallway Configuration:")
+        print("- The hallway has walls at y=-2 and y=2")
+        print("- Robots should stay between y=-1.5 and y=1.5 (middle of hallway)")
+        print("- X coordinates should be between -5 and 5")
+    elif scenario_type == 'intersection':
+        print("\nIntersection Configuration:")
+        print("- The intersection has walls forming a cross pattern")
+        print("- X and Y coordinates should be between -5 and 5")
+        print("- Avoid the obstacle regions")
+    elif scenario_type == 'doorway':
+        print("\nDoorway Configuration:")
+        print("- The doorway has a vertical wall with a narrow opening")
+        print("- Navigable opening is between y=-1.5 and y=1.5")
+        print("- X coordinates should be between -5 and 5")
+    
+    user_agents = []
+    defaults = get_default_values(scenario_type)
+    
+    for i in range(num_agents):
+        print(f"\n--- Agent {i+1} Parameters ---")
+        
+        # Use defaults for first two agents if available
+        if i == 0:
+            start_x = get_float_input(f"Start X position (default: {defaults['start_x']})", defaults['start_x'])
+            start_y = get_float_input(f"Start Y position (default: {defaults['start_y']})", defaults['start_y'])
+            goal_x = get_float_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'])
+            goal_y = get_float_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'])
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+        elif i == 1 and 'agent2' in defaults:
+            agent2_defaults = defaults['agent2']
+            start_x = get_float_input(f"Start X position (default: {agent2_defaults['start_x']})", agent2_defaults['start_x'])
+            start_y = get_float_input(f"Start Y position (default: {agent2_defaults['start_y']})", agent2_defaults['start_y'])
+            goal_x = get_float_input(f"Goal X position (default: {agent2_defaults['goal_x']})", agent2_defaults['goal_x'])
+            goal_y = get_float_input(f"Goal Y position (default: {agent2_defaults['goal_y']})", agent2_defaults['goal_y'])
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+        else:
+            start_x = get_float_input("Start X position")
+            start_y = get_float_input("Start Y position")
+            goal_x = get_float_input("Goal X position")
+            goal_y = get_float_input("Goal Y position")
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+        
+        # Use default values for radius, speed, and heading
+        radius = defaults.get('radius', 0.5)
+        pref_speed = defaults.get('pref_speed', 1.0)
+        if i == 1 and 'agent2' in defaults:
+            heading = defaults['agent2'].get('heading', 0.0)
+        else:
+            heading = defaults.get('heading', 0.0)
+            
+        user_agents.append((start_x, start_y, goal_x, goal_y, radius, pref_speed, heading))
+    
+    return user_agents
+
 def get_agent_parameters(num_agents, scenario_type):
     """Get agent parameters from user"""
     user_agents = []
@@ -282,8 +348,8 @@ def get_agent_parameters(num_agents, scenario_type):
     elif scenario_type == 'doorway':
         print("\nDoorway Configuration:")
         print("- The doorway has a vertical wall with a narrow opening")
-        print("- Navigable space has x between ±0.8")
-        print("- Y coordinates should be between -12 and 12")
+        print("- Navigable space has y between ±1.5")
+        print("- X coordinates should be between -5 and 5")
     
     for i in range(num_agents):
         print(f"\n--- Agent {i+1} Parameters ---")
@@ -320,7 +386,7 @@ def get_agent_parameters(num_agents, scenario_type):
     
     return user_agents
 
-def run_scenario(scenario_type, user_agents, num_steps=150):
+def run_scenario(scenario_type, user_agents, num_steps=150, verbose=True):
     """Run the specified scenario with user-defined agents"""
     # Create single tf session for all experiments
     import tensorflow.compat.v1 as tf
@@ -586,7 +652,10 @@ def run_scenario(scenario_type, user_agents, num_steps=150):
             print("=" * 65)
 
     # Evaluate CADRL performance with comprehensive metrics
-    evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
+    if verbose:
+        evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
+    else:
+        evaluation_results = display_clean_cadrl_metrics(agent_tracking_data, scenario_type, time_step)
     
     # Save trajectory data for further analysis
     root_dir = Path(__file__).resolve().parents[5]
@@ -1017,6 +1086,102 @@ def save_cadrl_trajectory_data(agent_data, output_dir, time_step):
                 writer.writerow([pos[0], pos[1], nominal_x[t], nominal_y[t]])
     
     return velocity_csv
+
+def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1):
+    """Display CADRL metrics in clean minimal format similar to IMPC-DR."""
+    if not agent_data:
+        return {}
+    
+    # Calculate metrics for clean display
+    completion_times = []
+    for agent in agent_data:
+        velocities = agent['velocities']
+        resultant_velocities = [np.sqrt(v[0]**2 + v[1]**2) for v in velocities]
+        velocity_threshold = 1e-10
+        last_moving_idx = None
+        for i in range(len(resultant_velocities) - 1, 0, -1):
+            if resultant_velocities[i] > velocity_threshold:
+                last_moving_idx = i
+                break
+        
+        if last_moving_idx is not None:
+            completion_time = last_moving_idx * time_step
+            completion_times.append(completion_time)
+        else:
+            completion_time = (len(velocities) - 1) * time_step
+            completion_times.append(completion_time)
+    
+    # Calculate overall metrics
+    makespan = max(completion_times) if completion_times else 0.0
+    gap_width = get_gap_width(scenario_type)
+    flow_rate = calculate_flow_rate(agent_data, time_step, gap_width)
+    
+    # Calculate success rate
+    successful_agents = 0
+    for agent in agent_data:
+        if agent['positions']:
+            final_pos = agent['positions'][-1]
+            goal_pos = agent['goal_pos']
+            final_distance = np.linalg.norm(np.array(final_pos) - np.array(goal_pos))
+            if final_distance <= 0.5:
+                successful_agents += 1
+    
+    success_rate = (successful_agents / len(agent_data)) * 100 if agent_data else 0
+    
+    print(f"\nSOCIAL-CADRL RESULTS")
+    print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
+    print()
+    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+    
+    # Calculate fastest time for MR calculation
+    fastest_time = min(completion_times) if completion_times else 1.0
+    
+    for i, agent in enumerate(agent_data):
+        agent_id = agent['id']
+        
+        # TTG (Time to Goal)
+        ttg = int(completion_times[i] / time_step) if i < len(completion_times) else 0
+        
+        # MR (Makespan Ratio)
+        mr = completion_times[i] / fastest_time if fastest_time > 0 and i < len(completion_times) else 1.0
+        
+        # Average Delta Velocity
+        avg_delta_v = calculate_average_delta_velocity(agent['velocities']) if agent['velocities'] else 0.0
+        
+        # Path Deviation
+        if agent['positions']:
+            avg_dev, max_dev, actual_length, nominal_length = calculate_path_deviation(
+                agent['positions'], agent['start_pos'], agent['goal_pos'])
+            path_dev = avg_dev
+        else:
+            path_dev = 0.0
+        
+        # Hausdorff Distance (using max deviation as approximation)
+        if agent['positions']:
+            hausdorff = max_dev
+        else:
+            hausdorff = 0.0
+        
+        print(f"Robot {agent_id}   {ttg:<3}  {mr:<6.3f} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+    
+    return {
+        'makespan': makespan,
+        'flow_rate': flow_rate,
+        'success_rate': success_rate,
+        'completion_times': completion_times
+    }
+
+def run_standardized_cadrl(scenario_type, verbose=False):
+    """Run CADRL with standardized interface similar to IMPC-DR."""
+    # Get configuration using standardized interface
+    user_agents = get_standardized_cadrl_config(scenario_type)
+    
+    print("\nStarting simulation...")
+    
+    # Run the scenario with default steps and verbose setting
+    evaluation_results = run_scenario(scenario_type, user_agents, num_steps=150, verbose=verbose)
+    
+    return evaluation_results
 
 def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
     """Evaluate CADRL performance with comprehensive metrics for moving robots only."""
