@@ -1,293 +1,210 @@
+# SMGLib: Social Multi-Agent Navigation Library
+
 <p align="center">
-  <img src="img.png" alt="Logo" width="800" height="500"/>
+  <img src="img.png" alt="SMGLib Logo" width="800" height="500"/>
 </p>
 
-![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/abj247/SMGLib)
+![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
 ![Static Badge](https://img.shields.io/badge/Status-Complete-green)
-![GitHub Repo stars](https://img.shields.io/github/stars/abj247/MASDA)
-![GitHub forks](https://img.shields.io/github/forks/abj247/SMGLib)
-![GitHub watchers](https://img.shields.io/github/watchers/abj247/SMGLib)
-![GitHub issues](https://img.shields.io/github/issues/abj247/SMGLib)
-![GitHub repo file count (file type)](https://img.shields.io/github/directory-file-count/abj247/MASDA)
-![GitHub language count](https://img.shields.io/github/languages/count/abj247/MASDA)
-![GitHub top language](https://img.shields.io/github/languages/top/abj247/MASDA)
+![GitHub Repo stars](https://img.shields.io/github/stars/CRAL-UVA/SMGLib)
+![GitHub forks](https://img.shields.io/github/forks/CRAL-UVA/SMGLib)
 
+## Overview
 
+**SMGLib** is a comprehensive Python library for multi-agent social navigation research and simulation. It provides a unified framework for testing, comparing, and analyzing different collision avoidance algorithms in complex social scenarios like doorways, hallways, and intersections.
 
+### Key Features
 
+🤖 **Multiple Navigation Algorithms**: Implements state-of-the-art methods including Social-ORCA, Social-IMPC-DR, and Social-CADRL
 
-# SMGLib: A Social Mini-Game Library
+📊 **Comprehensive Metrics**: Automatic calculation of performance metrics including path deviation, velocity smoothness, makespan ratios, flow rates, and success rates
 
-<p class="justify">SMGLib is a library that represents a culmination of extensive efforts dedicated to addressing the intricate challenge of deadlock avoidance within multi-agent social navigation contexts. In bustling environments characterized by doorways, hallways, intersections, and other intricate settings, the seamless and efficient movement of both individuals and autonomous agents is not just a convenience but a critical necessity. It is in this dynamic and challenging backdrop that the project takes center stage. Our primary objective revolves around the meticulous compilation of a diverse array of algorithms and methodologies hailing from various domains, each meticulously curated to serve as a potential solution for the multifaceted deadlock challenges prevalent in social navigation scenarios. </p>
+🎯 **Standardized Environments**: Consistent scenario configurations across all methods for fair comparison
 
-<p class="justify">These scenarios are marked by their inherent complexity, where agents need to navigate through spaces while intelligently avoiding bottlenecks, traffic congestion, and potential gridlocks. In the pursuit of deadlock avoidance excellence, the SMGLib is meticulously designed to offer a plethora of innovative strategies tailored to address these real-world challenges. Whether it's guiding pedestrians through congested doorways, orchestrating the movements of autonomous vehicles within intricate intersections, or facilitating the seamless flow of agents in narrow hallways, SMGLib houses a rich collection of algorithms catering to an extensive spectrum of scenarios.</p>
+🎬 **Rich Visualizations**: Generates GIF animations, trajectory plots, and SVG visualizations
 
-This library focuses on multi agent navigation in social-mini games. The approaches implemented are taken from following publications
+⚡ **Easy-to-Use Interface**: Simple command-line interface with interactive configuration
 
-* S. Dergachev and K. Yakovlev, "Distributed Multi-Agent Navigation Based on Reciprocal Collision Avoidance and Locally Confined Multi-Agent Path Finding," in Proceedings of the 17th International Conference on Automation Science and Engineering (CASE 2021), Lyon, France, 2021, pp. 1489-1494. [pdf](https://arxiv.org/pdf/2107.00246.pdf)
-* Multi-Robot Collision Avoidance under Uncertainty with Probabilistic Safety Barrier Certificates Wenhao Luo, Wen Sun, and Ashish Kapoor. [pdf](https://proceedings.neurips.cc/paper/2020/file/03793ef7d06ffd63d34ade9d091f1ced-Paper.pdf)
-* M. Everett, Y. Chen, and J. P. How, "Collision Avoidance in Pedestrian-Rich Environments with Deep Reinforcement Learning", IEEE Access Vol. 9, 2021, pp. 10357-1037. [pdf](https://arxiv.org/pdf/1910.11689.pdf)
-* M. Everett, Y. Chen, and J. P. How, "Motion Planning Among Dynamic, Decision-Making Agents with Deep Reinforcement Learning", IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), 2018. [pdf](https://arxiv.org/pdf/1703.08862.pdf)
-* A. Patwardhan, R. Murai and A. J. Davison, "Distributing Collaborative Multi-Robot Planning With Gaussian Belief Propagation," in IEEE Robotics and Automation Letters, vol. 8, no. 2, pp. 552-559, Feb. 2023, doi: 10.1109/LRA.2022.3227858. [pdf](https://arxiv.org/pdf/2203.11618.pdf)
-* Davis, Bobby, Ioannis Karamouzas, and Stephen J. Guy. "NH-TTC: A gradient-based framework for generalized anticipatory collision avoidance." arXiv preprint arXiv:1907.05945 (2019). [pdf](http://motion.cs.umn.edu/r/NH-TTC/)
+## Research Foundation
 
+The algorithms implemented in SMGLib are based on the following peer-reviewed publications:
 
+### Social-ORCA Implementation
+* **S. Dergachev and K. Yakovlev**, "Distributed Multi-Agent Navigation Based on Reciprocal Collision Avoidance and Locally Confined Multi-Agent Path Finding," in *Proceedings of the 17th International Conference on Automation Science and Engineering (CASE 2021)*, Lyon, France, 2021, pp. 1489-1494. [[pdf](https://arxiv.org/pdf/2107.00246.pdf)]
 
-# About
-* Multi Agent Navigation
-* Deadlock Avoidance
-* Social Mini-Games
+### Social-IMPC-DR Implementation
+* **Wenhao Luo, Wen Sun, and Ashish Kapoor**, "Multi-Robot Collision Avoidance under Uncertainty with Probabilistic Safety Barrier Certificates," *Proceedings of Neural Information Processing Systems (NeurIPS)*, 2020. [[pdf](https://proceedings.neurips.cc/paper/2020/file/03793ef7d06ffd63d34ade9d091f1ced-Paper.pdf)]
 
-# Overview
-The animations below give an overview of typical problems that SMG-tools can handle.
+* **A. Patwardhan, R. Murai and A. J. Davison**, "Distributing Collaborative Multi-Robot Planning With Gaussian Belief Propagation," in *IEEE Robotics and Automation Letters*, vol. 8, no. 2, pp. 552-559, Feb. 2023, doi: 10.1109/LRA.2022.3227858. [[pdf](https://arxiv.org/pdf/2203.11618.pdf)]
 
-<table style="border: none; border-collapse: collapse;" border="0" cellspacing="0" cellpadding="0" width="100%" align="center">
-<tr>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);" width="33%">
-<img width=100% src="vis/cadrl/intersection.gif" alt="CADRL: Intersection"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF" width="33%">
-<img width=100% src="vis/cadrl/doorway.gif" alt="CADRL: Doorway"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);" width="33%">
-<img width=100% src="vis/cadrl/lcor.gif" alt="CADRL: L-Corner"/>
-</td>
-<tr>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="vis/auction/hallway.gif" alt="Auction: Hallway"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="vis/random perturb/doorway.gif" alt="Random Perturbation Doorway"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="vis/random perturb/intersection.gif" alt="Random Perturb: Intersection"/>
-</td>
-</tr>
-<tr>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="vis/nhttc/doorway.gif" alt="NH-TTC: doorway"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="vis/nhttc/lcor.gif" alt="NH-TTC: L-corner"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="vis/nhttc/intersection.gif" alt="NH-TTC: Intersection"/>
-</td>
-</tr>
-</table>
+### Social-CADRL Implementation
+* **M. Everett, Y. Chen, and J. P. How**, "Collision Avoidance in Pedestrian-Rich Environments with Deep Reinforcement Learning," *IEEE Access* Vol. 9, 2021, pp. 10357-10377. [[pdf](https://arxiv.org/pdf/1910.11689.pdf)]
 
-# Table of Contents
-- [**About**](#About)
-- [**Dependcies**](#Dependcies)
-- [**Overview**](#Overview)
-- [**Installation**](#Installation)
-- [**Evaluation**](#Evaluation)
-- [**Supported Scenarios**](#Supported-Scenarios)
-- [**Code Example**](#Code-Example)
-- [**Success Metrics**](#Success-Metrics)
+* **M. Everett, Y. Chen, and J. P. How**, "Motion Planning Among Dynamic, Decision-Making Agents with Deep Reinforcement Learning," *IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)*, 2018. [[pdf](https://arxiv.org/pdf/1703.08862.pdf)]
 
+### Additional Methods
+* **Davis, Bobby, Ioannis Karamouzas, and Stephen J. Guy**, "NH-TTC: A gradient-based framework for generalized anticipatory collision avoidance," *arXiv preprint arXiv:1907.05945*, 2019. [[pdf](http://motion.cs.umn.edu/r/NH-TTC/)]
 
+## Quick Start
 
+### 1. Installation
 
-
-# Dependencies
-* Matlab         2014b
-* Python         3.6
-* gym            0.26.2
-* PyQt5          5.15.1
-* opencv-python  4.1.2.30
-* numpy          1.19.2
-* mosek          9.4.20
-* cvxpy          1.1.6
-* scipy          1.5.3
-* matplotlib     3.4.3
-* cmake          3.10
-* make
-* OpenMP
-
-
-# Installation
-
-To run the experiments first clone the repository for installation
-
-``` git clone https://github.com/abj247/Multi-agent-Motion-Planning-with-Deadlock-Resolution.git ```
-
-Install the packages
-
-```pip install -r requirements.txt```
-
-## Troubleshooting
-
-### Social-ORCA Build Issues
-
-If you encounter a "single_test not found" error when running Social-ORCA simulations, this indicates that the C++ executable wasn't properly built. The build process has been improved to handle this automatically, but if you still encounter issues:
-
-1. **Manual Build**: Navigate to the Social-ORCA directory and build manually:
-   ```bash
-   cd src/methods/Social-ORCA
-   make clean
-   make build/single_test
-   ```
-
-2. **Test Build Process**: Run the test script to verify the build process:
-   ```bash
-   python test_build.py
-   ```
-
-3. **Requirements**: Ensure you have the following build tools installed:
-   - `g++` (GNU C++ compiler)
-   - `make` (GNU Make)
-   - `pthread` library (usually included with gcc)
-
-4. **Common Issues**:
-   - **Permission Denied**: Make sure the build directory is writable
-   - **Compiler Not Found**: Install build-essential package (Ubuntu/Debian) or equivalent
-   - **Missing Dependencies**: The build process will show specific missing dependencies
-
-The build process now includes better error reporting and fallback mechanisms to help diagnose and resolve build issues.
-
-# Evaluation 
-
-To evaluate the experiments and visualize the trajectories run the evaluation script
-
-```
-python evaluate.py --path_deviation_csv path_deviation_file.csv --avg_delta_velocity_csv avg_delta_velocity_file.csv --evaluate_path_deviation --evaluate_avg_delta_velocity --save_path_deviation_plot --method method_name --scenario scenario_name
+Clone the repository:
+```bash
+git clone https://github.com/CRAL-UVA/SMGLib.git
+cd SMGLib
 ```
 
-
-
-# Supporterd Scenarios
-Our repository covers a wide spectrum of social navigation scenarios, including but not limited to:
-
-* Doorway 
-* Hallway 
-* Intersection 
-* L-Corner 
-* Blind Corner 
-* Crowded Traffic 
-* Parallel Traffic 
-* Perpendicular Traffic  
-* Circular Traffic
-  
-
-<table style="border: none; border-collapse: collapse;" border="0" cellspacing="0" cellpadding="0" width="100%" align="center">
-<tr>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);" width="33%">
-<img width=100% src="scenarios/doorway.png" alt="doorway"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF" width="33%">
-<img width=100% src="scenarios/intersection.png" alt="intersection"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);" width="33%">
-<img width=100% src="scenarios/hallway.png" alt="hallway"/>
-</td>
-<tr>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="scenarios/L-corner.png" alt="L-corner"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="scenarios/blind.png" alt="Blind Corner"/>
-</td>
-<td align="center" valign="center" style="background-color:rgba(0, 0, 0, 0);">
-<img width=100% src="scenarios/crowded.png" alt="Crowded"/>
-</td>
-</tr>
-<tr>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="scenarios/parallel.png" alt="Parallel"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="scenarios/perpendicular.png" alt="perpendicular"/>
-</td>
-<td align="center" valign="center" bgcolor="#FFFFFF">
-<img width=100% src="scenarios/circular.png" alt="Circular"/>
-</td>
-</tr>
-</table>
-
-
-# Code Example
-
-This is the elementary code example on how to genetate the trajectory animation for L-Corner scenario for CADRL.
-
-```python
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from scipy.spatial.distance import directed_hausdorff
-
-data = pd.read_csv('Lcorner_cadrl.csv')
-
-# Extract actual and nominal trajectory coordinates
-agent_1_x = data.iloc[:, 0]
-agent_2_x = data.iloc[:, 2]
-agent_1_y = data.iloc[:, 1]
-agent_2_y = data.iloc[:, 3]
-
-# Compute trajectory difference
-diff_x = agent_1_x - agent_2_x
-diff_y = actual_1_y - agent_2_y
-
-
-# Calculate Hausdorff distance
-agent_1_trajectory = np.column_stack((agent_1_x, agent_1_y))
-agent_2_trajectory = np.column_stack((agent_2_x, agent_2_y))
-hausdorff_dist = directed_hausdorff(agent_1_trajectory, agent_2_trajectory)[0]
-
-
-fig, ax = plt.subplots(figsize=(10, 8))
-plt.style.use('seaborn-darkgrid')
-
-ax.set_xlim(min(min(agent_1_x), min(agent_2_x)) - 1, max(max(agent_1_x), max(agent_2_x)) + 1)
-ax.set_ylim(min(min(agent_1_y), min(agent_2_y)) - 1, max(max(agent_1_y), max(agent_2_y)) + 1)
-
-# Set Obstacles Positions
-
-circles = [(-1.0, -1.0, 0.1), (-1.2, -1.0, 0.1), (-1.4, -1.0, 0.1), (-0.8, -1.0, 0.1), (-0.6, -1.0, 0.1), (0.0, -1.0, 0.1), (0.2, -1.0, 0.1), (0.4, -1.0, 0.1), (0.6, -1.0, 0.1), (0.8, -1.0, 0.1), (1.0, -1.0, 0.1), (1.2, -1.0, 0.1), (-1.6, -1.0, 0.1), (-1.8, -1.0, 0.1), (-2.0, -1.0, 0.1), (-2.2, -1.0, 0.1), (-2.4, -1.0, 0.1)]  # Replace with your circle positions and sizes
-for x, y, radius in circles:
-    circle = plt.Circle((x, y), radius, color='black', fill=True)
-    ax.add_artist(circle)
-
-agent_1_traj_line, = ax.plot([], [], linestyle='-', linewidth=2, color='blue', label='Agent 1 Trajectory')
-agent_2_traj_line, = ax.plot([], [], linestyle='-', linewidth=2, color='green', label='Agent 2 Trajectory')
-
-# Set labels, title, and legend
-ax.set_xlabel('X', fontsize=12)
-ax.set_ylabel('Y', fontsize=12)
-ax.set_title('Trajectory Generation', fontsize=14)
-ax.legend(fontsize=12)
-ax.grid(True, linestyle='--', alpha=0.7)
-
-# Function to update the animation
-def update(num, agent_1_x, agent_1_y, agent_2_x, agent_2_y):
-    agent_1_traj_line.set_data(agent_1_x[:num], agent_1_y[:num])
-    nominal_traj_line.set_data(agent_2_x[:num], agent_2_y[:num])
-    return agent_1_traj_line, agent_2_traj_line
-
-# Creating the animation
-ani = animation.FuncAnimation(fig, update, frames=len(agent_1_x), fargs=(agent_1_x, agent_1_y, agent_2_x, agent_2_y), blit=True)
-
-# Save the animation as a GIF
-gif_path = "./vis/CADRL/lcor.gif"  
-ani.save(gif_path, fps=10)
+Install dependencies:
+```bash
+pip install -r requirements.txt
 ```
-<p align="center">
-<img width=400 src="vis/cadrl/lcor.gif" alt="CADRL: L-Corner animation"/>
-</p>
 
-# Success Metrics
- In the pursuit of excellence within multi-agent social navigation, evaluating the performance and effectiveness of algorithms and methodologies is paramount. To comprehensively assess the impact of our solutions, we employ a set of carefully selected success metrics. These metrics serve as vital benchmarks, offering insights into the efficacy of our approaches in diverse scenarios. The success metrics incorporated into our repository encompass a range of key parameters, each shedding light on a specific aspect of agent behavior and system performance. These metrics include:
+### 2. Run Your First Simulation
 
-- Average Delta Velocity: This metric is the average consecutive difference between linear velocities recorded by the agents over the whole time steps. This metric is crucial in assessing how consistently the agents move and adapt their speeds while executing their assigned tasks to reach the goal position.
+```bash
+python3 run_simulation.py
+```
 
-- Path Difference: This metric is the hausdorff distance between the nominal and actual trajectory covered by the agent. Here nominal is referred to the trajectory taken by the respective agent if it is present alone in the environment. Thsi metric helps us in evaluating the increased cost in path deviation against avoding the potential deadlock.
+This launches an interactive menu where you can:
+- Choose a navigation method (Social-ORCA, Social-IMPC-DR, or Social-CADRL)
+- Select an environment (doorway, hallway, intersection)
+- Configure agents and parameters
+- View results and animations
 
-- Makespan Ratio: This is the ratio between the time taken by the last agent and the first agent to reach the goal position. Through this metric helps us in evaluating the time complexity for the method in deadlock and collision avoidance.
+### 3. Example Results
 
-- Success Rate: This metric helps in determining the success of the method in deadlock avoidance, This is evaluated by taking the ratio of the number of times the agent successfully reached the goal position navigating safely to the total number of trials.
+After running a simulation, you'll see results like:
 
-By integrating these success metrics into our repository, we aim to provide a holistic view of our algorithms' performance and their suitability for addressing the challenges of multi-agent social navigation. These metrics empower us to continually refine and enhance our methodologies, ultimately contributing to safer and more efficient interactions between agents in shared spaces.
+```
+SOCIAL-IMPC-DR RESULTS
+Environment: doorway  Success Rate: 100.0% (2/2)  Makespan: 15.00s  Flow Rate: 0.1667
+
+Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff
+Robot 0   45   1.000  1.576   28.488    0.145   
+Robot 1   47   1.044  1.576   28.493    0.146  
+```
+
+## Available Methods
+
+### 1. Social-ORCA
+**Optimal Reciprocal Collision Avoidance** - A velocity-based collision avoidance method that guarantees collision-free navigation in multi-agent environments.
+
+*Features:*
+- Real-time collision avoidance
+- Distributed decision making
+- Minimal computational overhead
 
 
+### 2. Social-IMPC-DR
+**Iterative Model Predictive Control with Deadlock Resolution** - Advanced predictive control method with explicit deadlock detection and resolution mechanisms.
 
+*Features:*
+- Predictive trajectory planning
+- Deadlock detection and resolution
+- Optimization-based approach
+
+
+### 3. Social-CADRL
+**Collision Avoidance with Deep Reinforcement Learning** - Deep learning-based approach trained on diverse social navigation scenarios.
+
+*Features:*
+- Learning-based navigation policies
+- Adaptable to novel scenarios
+- Human-like behavior patterns
+
+
+## Supported Environments
+
+### Doorway Scenario
+Agents navigate through a narrow doorway, requiring coordination to avoid deadlocks.
+
+### Hallway Scenario
+Bidirectional traffic flow in a constrained hallway environment.
+
+### Intersection Scenario
+Complex multi-directional navigation through intersection points.
+
+## Walkthrough: Running a Complete Simulation
+
+### Step 1: Launch the Simulator
+```bash
+python3 run_simulation.py
+```
+
+### Step 2: Select Method and Environment
+```
+Welcome to the Multi-Agent Navigation Simulator
+=============================================
+
+Available Methods:
+1. Social-ORCA
+2. Social-IMPC-DR  
+3. Social-CADRL
+
+Enter method number (1-3): 2
+
+Available environments:
+1. doorway
+2. hallway
+3. intersection
+
+Enter environment type (1-3): 1
+```
+
+### Step 3: Choose Output Format
+```
+Output format options:
+1. Clean (minimal text output)
+2. Verbose (detailed output with explanations)
+
+Enter output format (1-2): 1
+```
+
+### Step 4: Configure Simulation (for ORCA)
+For Social-ORCA, you'll configure:
+- Number of robots (1-4)
+- Start and goal positions for each robot
+- Environment-specific constraints
+
+### Step 5: View Results
+The simulation generates:
+- **Performance metrics** displayed in terminal
+- **Animation files** in `logs/[method]/animations/`
+
+### Step 6: Examine Outputs
+
+**Terminal Results:**
+```
+SOCIAL-IMPC-DR RESULTS
+Environment: doorway  Success Rate: 100.0% (2/2)  Makespan: 15.00s  Flow Rate: 0.1667
+
+Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff
+Robot 0   45   1.000  1.576   28.488    0.145   
+Robot 1   47   1.044  1.576   28.493    0.146  
+```
+
+## Performance Metrics Explained
+
+### Primary Metrics
+
+| Metric | Description | Interpretation |
+|--------|-------------|----------------|
+| **Success Rate** | Percentage of agents reaching goals | Higher = better deadlock avoidance |
+| **Makespan** | Time for all agents to complete | Lower = more efficient |
+| **Flow Rate** | Agents per unit time through bottleneck | Higher = better throughput |
+
+### Per-Agent Metrics
+
+| Metric | Description | Formula |
+|--------|-------------|---------|
+| **TTG** | Time To Goal (steps) | Steps until goal reached |
+| **MR** | Makespan Ratio | TTG_agent / TTG_fastest |
+| **Avg ΔV** | Average velocity change | Σ\|v(t+1) - v(t)\| |
+| **Path Dev** | Path deviation from nominal | L2 norm of trajectory difference |
+| **Hausdorff** | Maximum deviation distance | max distance between trajectories |
+
+
+---
+
+**SMGLib** - Advancing multi-agent navigation research through comprehensive simulation and analysis tools.
