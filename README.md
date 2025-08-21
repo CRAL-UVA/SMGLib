@@ -1,7 +1,7 @@
 # SMGLib: Social Multi-Agent Navigation Library
 
 <p align="center">
-  <img src="img.png" alt="SMGLib Logo" width="800" height="500"/>
+  <img src="SMGLib.png" alt="SMGLib Logo" width="800" height="500"/>
 </p>
 
 ![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
