@@ -1609,9 +1609,9 @@ def generate_config(env_type, num_robots, robot_positions):
     print(f"\nConfiguration saved to {config_filename}")
     return config_filename
 
-def run_social_cadrl():
-    """Run Social-CADRL by switching to its directory and calling run_scenarios.py."""
-    print("\nRunning Social-CADRL simulation...")
+def run_social_cadrl(env_type='hallway', verbose=False):
+    """Run Social-CADRL with standardized interface similar to IMPC-DR."""
+    print(f"\nRunning Social-CADRL simulation with standardized environment...")
     
     # Handle numpy compatibility issues for CADRL
     try:
@@ -1686,18 +1686,19 @@ def run_social_cadrl():
                 import run_scenarios
                 print("✓ Successfully imported run_scenarios")
                 
-                # Call the main function from run_scenarios - it will handle its own user input
-                result = run_scenarios.main()
+                # Use the standardized CADRL interface similar to IMPC-DR
+                print(f"Starting CADRL simulation with environment: {env_type}")
+                result = run_scenarios.run_standardized_cadrl(env_type, verbose=verbose)
                 
-                if result == 0 or result is None:  # Some scripts may not return a value
+                if result is not None:
                     print("✓ CADRL simulation completed successfully!")
                     
                     # Look for generated animation files
-                    animations_dir = cadrl_dir / "experiments" / "results" / "example" / "animations"
+                    animations_dir = Path(__file__).parent / "logs" / "Social-CADRL" / "animations"
                     if animations_dir.exists():
                         animation_files = list(animations_dir.glob("*.gif"))
                         if animation_files:
-                            print(f"✓ Animation saved: {animation_files[0]}")
+                            print(f"GIF animation saved as {animation_files[-1]}")
                 else:
                     print("✗ CADRL simulation completed with errors")
                     
@@ -1872,8 +1873,39 @@ def main():
             run_social_impc_dr(env_type, verbose=verbose_mode)
         else:  # choice == 3, Social-CADRL
             print("\nStarting Social-CADRL...")
-            print("The CADRL simulation will prompt you for environment and agent configuration.")
-            run_social_cadrl()
+            
+            # Environment selection for CADRL
+            while True:
+                print("\nAvailable environments:")
+                print("1. doorway")
+                print("2. hallway")
+                print("3. intersection")
+                try:
+                    env_choice = int(input("\nEnter environment type (1-3): "))
+                    if env_choice in [1, 2, 3]:
+                        env_types = {1: 'doorway', 2: 'hallway', 3: 'intersection'}
+                        env_type = env_types[env_choice]
+                        break
+                    print("Invalid choice! Please enter 1, 2, or 3.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            # Output format selection for CADRL
+            while True:
+                print("\nOutput format options:")
+                print("1. Clean (minimal text output)")
+                print("2. Verbose (detailed output with explanations)")
+                try:
+                    verbose_choice = int(input("\nEnter output format (1-2): "))
+                    if verbose_choice in [1, 2]:
+                        break
+                    print("Invalid choice! Please enter 1 or 2.")
+                except ValueError:
+                    print("Invalid input! Please enter a number.")
+            
+            verbose_mode = (verbose_choice == 2)
+            
+            run_social_cadrl(env_type, verbose=verbose_mode)
     finally:
         # Always return to the original directory
         os.chdir(original_dir)
