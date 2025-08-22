@@ -15,6 +15,10 @@ import json
 import venv
 import shutil
 
+# Import standardized environment configuration
+sys.path.append(str(Path(__file__).parent / 'src'))
+from utils import StandardizedEnvironment
+
 def get_venv_python():
     venv_dir = Path(__file__).parent / "venv"
     if sys.platform == "win32":
@@ -36,6 +40,13 @@ def parse_orca_log(log_file):
     num_robots = int(agents_elem.get('number'))
     time_step = float(root.find('.//timestep').text)
     
+    # Coordinate conversion function: grid to world coordinates
+    def grid_to_world(x_grid, y_grid):
+        # Convert from grid coordinates (0 to 63, 0 to 63) to world coordinates (-6 to 6, -8 to 8)
+        x_world = (x_grid * 12 / 63) - 6
+        y_world = (y_grid * 16 / 63) - 8
+        return x_world, y_world
+    
     # Extract agent data from the log section
     log_section = root.find('log')
     agents_data = []
@@ -54,9 +65,11 @@ def parse_orca_log(log_file):
         positions = []
         velocities = []
         
-        # Get start and goal positions from the initial agent definition
-        start_pos = [float(agent_def.get('start.xr')), float(agent_def.get('start.yr'))]
-        goal_pos = [float(agent_def.get('goal.xr')), float(agent_def.get('goal.yr'))]
+        # Get start and goal positions from the initial agent definition (convert from grid to world)
+        start_x_grid, start_y_grid = float(agent_def.get('start.xr')), float(agent_def.get('start.yr'))
+        goal_x_grid, goal_y_grid = float(agent_def.get('goal.xr')), float(agent_def.get('goal.yr'))
+        start_pos = list(grid_to_world(start_x_grid, start_y_grid))
+        goal_pos = list(grid_to_world(goal_x_grid, goal_y_grid))
         
         # Extract trajectory data from the log section
         path = agent_log.find('path')
@@ -64,15 +77,17 @@ def parse_orca_log(log_file):
             steps = path.findall('step')
             for i in range(len(steps)):
                 step = steps[i]
-                pos = [float(step.get('xr')), float(step.get('yr'))]
-                positions.append(pos)
+                pos_grid = [float(step.get('xr')), float(step.get('yr'))]
+                pos_world = list(grid_to_world(pos_grid[0], pos_grid[1]))
+                positions.append(pos_world)
                 
-                # Calculate velocity from position difference
+                # Calculate velocity from position difference (using world coordinates)
                 if i < len(steps) - 1:
                     next_step = steps[i+1]
-                    next_pos = [float(next_step.get('xr')), float(next_step.get('yr'))]
+                    next_pos_grid = [float(next_step.get('xr')), float(next_step.get('yr'))]
+                    next_pos_world = list(grid_to_world(next_pos_grid[0], next_pos_grid[1]))
                     # Calculate velocity as (next_pos - pos) / time_step
-                    vel = [(next_pos[0] - pos[0]) / time_step, (next_pos[1] - pos[1]) / time_step]
+                    vel = [(next_pos_world[0] - pos_world[0]) / time_step, (next_pos_world[1] - pos_world[1]) / time_step]
                 else:
                     # For the last step, use zero velocity
                     vel = [0, 0]
@@ -182,131 +197,257 @@ def get_num_robots_from_config(config_file):
     agents = root.findall('.//agent')
     return len(agents)
 
-def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None):
+def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None, num_robots=None):
     """Generate an animation of robot movements."""
     # Create animations directory in the main SMGLib logs folder
     base_dir = Path(__file__).parent
     animations_dir = base_dir / "logs" / "Social-ORCA" / "animations"
     animations_dir.mkdir(parents=True, exist_ok=True)
     
-    # Set up the figure and axis
-    fig, ax = plt.subplots(figsize=(12, 10))
-    ax.set_xlim(0, map_size[0])
-    ax.set_ylim(0, map_size[1])
+    # Set up the figure and axis with standardized environment
+    fig, ax = plt.subplots(figsize=(10, 8))  # Match standardized figure size
+    ax.set_xlim(-6, 6)  # Standardized grid limits
+    ax.set_ylim(-8, 8)
     ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
     
-    # Add grid
-    ax.grid(True)
+    # Use standardized colors
+    colors = [
+        [0.8500, 0.3250, 0.0980],  # orange
+        [0.0, 0.4470, 0.7410],     # blue
+        [0.4660, 0.6740, 0.1880],  # green
+        [0.4940, 0.1840, 0.5560],  # purple
+        [0.9290, 0.6940, 0.1250],  # yellow
+        [0.3010, 0.7450, 0.9330],  # cyan
+        [0.6350, 0.0780, 0.1840],  # chocolate
+    ]
     
-    # Create scatter plots for robots
-    scatter = ax.scatter([], [], c=[], s=200, edgecolors='black', linewidths=1)
+    # Create scatter plots for agents and obstacles (matching IMPC-DR style)
+    dyn_scatter = ax.scatter([], [], c=[], s=200, edgecolors='black', linewidths=1, label='Agent')
+    obs_scatter = ax.scatter([], [], c='gray', s=200, edgecolors='black', linewidths=1, label='Obstacle')
     
-    # Create goal markers
-    for agent in agents_data:
+    # Goals as green stars - only for dynamic agents
+    for i, agent in enumerate(agents_data):
         goal_pos = agent['goal_pos']
-        ax.plot(goal_pos[0], goal_pos[1], '*', color='blue', markersize=15, label='Goal' if agent['id'] == 0 else "")
+        ax.scatter(goal_pos[0], goal_pos[1], marker='*', s=300, color='green', edgecolor='black', zorder=4)
     
-    # Add obstacles from config file if provided
-    if config_file and os.path.exists(config_file):
-        tree = ET.parse(config_file)
-        root = tree.getroot()
-        obstacles = root.findall('.//obstacle')
-        
-        for obstacle in obstacles:
-            vertices = []
-            for vertex in obstacle.findall('vertex'):
-                x = float(vertex.get('xr'))
-                y = float(vertex.get('yr'))
-                vertices.append([x, y])
-            
-            # Create polygon patch for obstacle
-            vertices = np.array(vertices)
-            polygon = patches.Polygon(vertices, closed=True, facecolor='black', edgecolor='none', alpha=0.8)
-            ax.add_patch(polygon)
+    # Add standardized obstacles (matching IMPC-DR style)
+    # Determine environment type from config file name or use default
+    env_type = "doorway"  # default
+    if config_file:
+        config_name = Path(config_file).stem
+        if "doorway" in config_name:
+            env_type = "doorway"
+        elif "hallway" in config_name:
+            env_type = "hallway"
+        elif "intersection" in config_name:
+            env_type = "intersection"
     
-    # Create velocity vectors
-    velocity_arrows = []
-    for _ in agents_data:
-        arrow = ax.arrow(0, 0, 0, 0, head_width=0.5, head_length=0.8, fc='red', ec='red', alpha=0.5)
-        velocity_arrows.append(arrow)
+    # Get standardized obstacles for the environment type
+    if env_type == "doorway":
+        obstacles = StandardizedEnvironment.get_doorway_obstacles()
+    elif env_type == "hallway":
+        obstacles = StandardizedEnvironment.get_hallway_obstacles()
+    elif env_type == "intersection":
+        obstacles = StandardizedEnvironment.get_intersection_obstacles()
+    else:
+        obstacles = StandardizedEnvironment.get_doorway_obstacles()  # fallback
     
-    # CADRL-like legend outside plot
+    # Use circles for obstacles (matching IMPC-DR style)
+    obstacle_radius = StandardizedEnvironment.DEFAULT_AGENT_RADIUS  # Same as IMPC-DR (r_min/2.0 where r_min=0.3)
+    
+    # Draw obstacles as gray circles (matching IMPC-DR style)
+    for obstacle_pos in obstacles:
+        circle = patches.Circle(obstacle_pos, radius=obstacle_radius, 
+                               facecolor='gray', edgecolor='black', linewidth=1, alpha=0.8)
+        ax.add_patch(circle)
+    
+    # Legend matching IMPC-DR style
     import matplotlib.lines as mlines
     legend_handles = []
     legend_labels = []
-    if len(agents_data) > 1:
-        for i, _ in enumerate(agents_data):
-            color = ['blue','red','green','orange','purple','brown','pink','gray','olive','cyan'][i % 10]
-            h = mlines.Line2D([], [], color=color, marker='o', linestyle='None',
-                               markersize=10, markerfacecolor=color, markeredgecolor='black')
-            legend_handles.append(h)
-            legend_labels.append(f'Agent {i+1}')
-    else:
-        h = mlines.Line2D([], [], color='blue', marker='o', linestyle='None',
-                           markersize=10, markerfacecolor='blue', markeredgecolor='black')
-        legend_handles.append(h)
-        legend_labels.append('Agent')
-    ob_h = mlines.Line2D([], [], color='black', marker='o', linestyle='None',
-                         markersize=10, markerfacecolor='black', markeredgecolor='none')
-    legend_handles.append(ob_h)
+    legend_handles.append(mlines.Line2D([], [], color='gray', marker='o', linestyle='None',
+                                        markersize=10, markerfacecolor='gray', markeredgecolor='black'))
     legend_labels.append('Obstacle')
-    g_h = mlines.Line2D([], [], color='blue', marker='*', linestyle='None',
-                        markersize=12, markerfacecolor='blue', markeredgecolor='none')
-    legend_handles.append(g_h)
+    for i, _ in enumerate(agents_data):
+        color = colors[i % len(colors)]
+        legend_handles.append(mlines.Line2D([], [], color=color, marker='o', linestyle='None',
+                                            markersize=10, markerfacecolor=color, markeredgecolor='black'))
+        legend_labels.append(f'Agent {i+1}')
+    legend_handles.append(mlines.Line2D([], [], color='green', marker='*', linestyle='None',
+                                        markersize=12, markerfacecolor='green', markeredgecolor='none'))
     legend_labels.append('Goal')
+
     ax.legend(legend_handles, legend_labels,
               loc='center left', bbox_to_anchor=(1.01, 0.5), fontsize=12, borderaxespad=0., markerscale=1.2)
-    plt.tight_layout(); plt.subplots_adjust(right=0.8)
+    plt.tight_layout()
+    plt.subplots_adjust(right=0.8)
     
     def update(frame):
-        # Update robot positions
+        # Update agent positions (matching IMPC-DR style)
         positions = []
-        for agent in agents_data:
+        for i, agent in enumerate(agents_data):
             if frame < len(agent['positions']):
                 pos = agent['positions'][frame]
                 positions.append(pos)
-                
-                # Update velocity arrow
-                if frame < len(agent['velocities']):
-                    vel = agent['velocities'][frame]
-                    arrow = velocity_arrows[agent['id']]
-                    arrow.set_data(x=pos[0], y=pos[1], dx=vel[0], dy=vel[1])
             else:
                 # If we're past the end of this agent's trajectory, use the last position
                 positions.append(agent['positions'][-1])
         
-        scatter.set_offsets(positions)
-        return [scatter] + velocity_arrows
+        # Update dynamic agents scatter plot
+        if positions:
+            dyn_colors = [colors[i % len(colors)] for i in range(len(positions))]
+            dyn_scatter.set_offsets(np.array(positions).reshape(-1, 2))
+            dyn_scatter.set_color(dyn_colors)
+        else:
+            dyn_scatter.set_offsets(np.empty((0, 2)))
+        
+        return [dyn_scatter]
     
-    # Create animation with reduced frames
+    # Create animation with reduced frames (matching IMPC-DR style)
     num_frames = max(len(agent['positions']) for agent in agents_data)
     # Sample every 5th frame to reduce total frames
     frames = range(0, num_frames, 5)
     anim = FuncAnimation(fig, update, frames=frames, interval=200, blit=True)  # 200ms interval for 5 FPS
     
-    # Add legend
-    ax.legend()
-    
-    # Save animation
+    # Save animation with consistent naming
     try:
-        anim.save(animations_dir / "robot_movement.gif", writer='pillow', fps=5)  # Set FPS to 5
-        print(f"Animation saved to {animations_dir / 'robot_movement.gif'}")
+        # Determine environment type from config file name
+        env_type = "demo"
+        if config_file:
+            config_name = Path(config_file).stem
+            if "doorway" in config_name:
+                env_type = "doorway"
+            elif "hallway" in config_name:
+                env_type = "hallway"
+            elif "intersection" in config_name:
+                env_type = "intersection"
+        
+        animation_filename = f"{env_type}_{num_robots}agents.gif"
+        anim.save(animations_dir / animation_filename, writer='pillow', fps=5)  # Set FPS to 5
+        print(f"Animation saved to {animations_dir / animation_filename}")
     except Exception as e:
         print(f"Failed to save GIF: {e}")
-        print("Saving as HTML instead...")
-        try:
-            anim.save(animations_dir / "robot_movement.html", writer='html')
-            print(f"Animation saved to {animations_dir / 'robot_movement.html'}")
-        except Exception as e:
-            print(f"Failed to save HTML: {e}")
-            print("Saving individual frames as PNG...")
-            for frame in range(num_frames):
-                update(frame)
-                plt.savefig(animations_dir / f"frame_{frame:04d}.png")
-            print(f"Frames saved to {animations_dir}")
+        print("Animation generation failed.")
     
     plt.close()
-    return animations_dir / "robot_movement.gif"
+    return animations_dir / animation_filename
+
+def get_input(prompt, default, type_cast=str):
+    """Get user input with default value support (matching IMPC-DR format)."""
+    while True:
+        user_input = input(f"{prompt} (default: {default}): ")
+        if not user_input:
+            return default
+        try:
+            return type_cast(user_input)
+        except ValueError:
+            print(f"Invalid input! Please enter a valid {type_cast.__name__}.")
+
+def run_social_orca_standardized(env_type, verbose=False):
+    """Run Social-ORCA with standardized user input format matching IMPC-DR."""
+    print("\nRunning Social-ORCA Simulation with standardized environment...")
+    
+    # Store the base directory
+    base_dir = Path(__file__).parent
+    
+    # Change to Social-ORCA directory
+    orca_dir = base_dir / "src/methods/Social-ORCA"
+    os.chdir(orca_dir)
+    
+    # Build the project if needed
+    if not build_social_orca():
+        print("✗ Failed to build Social-ORCA. Cannot run simulation.")
+        return
+    
+    # --- Get User Input for Simulation (matching IMPC-DR format) ---
+    
+    # Get parameters for the moving robots
+    num_moving_robots = get_input("Enter number of moving robots", 2, int)
+    
+    # Get simulation parameters from user
+    min_radius = get_input("Enter minimum distance between robots", 0.2, float)
+    
+    print("\nConfigure moving robots:")
+    
+    # Print environment-specific instructions using standardized coordinates
+    if env_type == 'doorway':
+        print("\nDoorway Configuration:")
+        print("- The doorway has a vertical wall at x=0 with a gap between y=-2 and y=2")
+        print("- X coordinates should be between -5 and 5")
+        print("- Y coordinates should be between -7 and 7")
+    elif env_type == 'hallway':
+        print("\nHallway Configuration:")
+        print("- The hallway has walls at y=-2 and y=2")
+        print("- Robots should stay between y=-1.5 and y=1.5 (middle of hallway)")
+        print("- X coordinates should be between -5 and 5")
+    elif env_type == 'intersection':
+        print("\nIntersection Configuration:")
+        print("- The intersection has corridors with center at (0, 0)")
+        print("- Corridor width extends from -2 to 2 in both directions")
+        print("- X and Y coordinates should be between -5 and 5")
+    
+    # Get standardized default positions
+    standard_positions = StandardizedEnvironment.get_standard_agent_positions(env_type, num_moving_robots)
+    
+    # Convert to the format expected by ORCA
+    default_positions = []
+    for pos in standard_positions:
+        default_positions.append({
+            'start_x': pos['start'][0],
+            'start_y': pos['start'][1],
+            'goal_x': pos['goal'][0],
+            'goal_y': pos['goal'][1]
+        })
+    
+    # Get robot positions
+    robot_positions = []
+    for i in range(num_moving_robots):
+        print(f"\n--- Agent {i+1} Parameters ---")
+        
+        # Get default values for this robot (cycle through available defaults)
+        default_idx = i % len(default_positions)
+        defaults = default_positions[default_idx]
+        
+        # Get start position
+        start_x = get_input(f"Start X position (default: {defaults['start_x']})", defaults['start_x'], float)
+        start_y = get_input(f"Start Y position (default: {defaults['start_y']})", defaults['start_y'], float)
+        
+        # Get goal position  
+        goal_x = get_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'], float)
+        goal_y = get_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'], float)
+        
+        robot_positions.append({
+            'start_x': start_x,
+            'start_y': start_y,
+            'goal_x': goal_x,
+            'goal_y': goal_y
+        })
+        
+        print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+    
+    # Generate configuration file with user input
+    config_file = generate_config(env_type, num_moving_robots, robot_positions)
+    
+    # Run the simulation
+    run_social_orca(config_file, num_moving_robots, verbose=verbose)
+
+def get_standardized_orca_config(env_type):
+    """Get the path to the standardized ORCA configuration file for the given environment type."""
+    base_dir = Path(__file__).parent
+    orca_dir = base_dir / "src/methods/Social-ORCA"
+    
+    if env_type == 'doorway':
+        config_file = orca_dir / "configs" / "config_doorway_2_robots_standardized.xml"
+    elif env_type == 'hallway':
+        config_file = orca_dir / "configs" / "config_hallway_2_robots_standardized.xml"
+    elif env_type == 'intersection':
+        config_file = orca_dir / "configs" / "config_intersection_2_robots_standardized.xml"
+    else:
+        # Fallback to doorway
+        config_file = orca_dir / "configs" / "config_doorway_2_robots_standardized.xml"
+    
+    return config_file
 
 def build_social_orca():
     """Build the Social-ORCA project if needed."""
@@ -429,7 +570,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
         print("✗ Failed to build Social-ORCA. Cannot run simulation.")
         return
     
-    # Use the provided config file
+    # Use the provided configuration file (don't override with standardized)
     config_path = config_file
     print(f"\nUsing configuration file: {config_path}")
     
@@ -471,7 +612,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
         
         # Generate animation
         num_robots, time_step, agents_data = parse_orca_log(latest_log)
-        animation_path = generate_animation(agents_data, output_dir, config_file=config_path)
+        animation_path = generate_animation(agents_data, output_dir, config_file=config_path, num_robots=num_robots)
         print(f"\nAnimation generated at: {animation_path}")
         
         # Evaluate trajectories
@@ -1314,124 +1455,141 @@ def generate_config(env_type, num_robots, robot_positions):
     agents = ET.SubElement(root, 'agents', {'number': str(num_robots), 'type': 'orca'})
     default_params = ET.SubElement(agents, 'default_parameters', {
         'size': '0.3',
-        'movespeed': '1',
+        'movespeed': '1.0',
         'agentsmaxnum': str(num_robots),
         'timeboundary': '5.4',
         'sightradius': '3.0',
         'timeboundaryobst': '33'
     })
     
+    # Convert world coordinates to grid coordinates
+    def world_to_grid(x_world, y_world):
+        # Convert from world coordinates (-6 to 6, -8 to 8) to grid coordinates (0 to 63, 0 to 63)
+        x_grid = (x_world + 6) * 63 / 12
+        y_grid = (y_world + 8) * 63 / 16
+        return x_grid, y_grid
+    
     # Add individual agents
     for i in range(num_robots):
+        # Convert coordinates
+        start_x_grid, start_y_grid = world_to_grid(robot_positions[i]['start_x'], robot_positions[i]['start_y'])
+        goal_x_grid, goal_y_grid = world_to_grid(robot_positions[i]['goal_x'], robot_positions[i]['goal_y'])
+        
         agent = ET.SubElement(agents, 'agent', {
             'id': str(i),
-            'start.xr': str(robot_positions[i]['start_x']),
-            'start.yr': str(robot_positions[i]['start_y']),
-            'goal.xr': str(robot_positions[i]['goal_x']),
-            'goal.yr': str(robot_positions[i]['goal_y'])
+            'start.xr': str(start_x_grid),
+            'start.yr': str(start_y_grid),
+            'goal.xr': str(goal_x_grid),
+            'goal.yr': str(goal_y_grid)
         })
     
-    # Add map section
+    # Add map section with 64x64 grid (matching original ORCA configs)
     map_elem = ET.SubElement(root, 'map')
     ET.SubElement(map_elem, 'width').text = '64'
     ET.SubElement(map_elem, 'height').text = '64'
     ET.SubElement(map_elem, 'cellsize').text = '1'
     
-    # Add grid
+    # Add grid (all empty for these scenarios)
     grid = ET.SubElement(map_elem, 'grid')
-    for _ in range(64):  # 64x64 grid
+    for _ in range(64):  # 64 rows
         row = ET.SubElement(grid, 'row')
         row.text = '0 ' * 63 + '0'  # 64 zeros per row
     
-    # Add obstacles based on environment type
+    # Add obstacles based on standardized environment type
     if env_type == 'hallway':
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
-        # Add hallway walls
-        obstacle1 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '31'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '0', 'yr': '32'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '63', 'yr': '31'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '63', 'yr': '32'})
+        # Add hallway walls at y=-2 and y=2
+        # Convert obstacle coordinates to grid coordinates
+        x_left_grid, _ = world_to_grid(-6, 0)  # x=-6 in world coordinates
+        x_right_grid, _ = world_to_grid(6, 0)  # x=6 in world coordinates
+        _, y_bottom_wall_grid = world_to_grid(0, -2)  # y=-2 in world coordinates
+        _, y_top_wall_grid = world_to_grid(0, 2)  # y=2 in world coordinates
         
-        obstacle2 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '35'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '36'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '35'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '63', 'yr': '36'})
+        # Bottom wall
+        obstacles1 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle1 = ET.SubElement(obstacles1, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_bottom_wall_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_bottom_wall_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_bottom_wall_grid + 1)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_bottom_wall_grid + 1)})
+        
+        # Top wall
+        obstacles2 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle2 = ET.SubElement(obstacles2, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_top_wall_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_top_wall_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_top_wall_grid + 1)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_top_wall_grid + 1)})
     
     elif env_type == 'doorway':
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '2'})
-        # Add doorway walls
-        obstacle1 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '30', 'yr': '30'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '31', 'yr': '30'})
+        # Add doorway walls at x=0 with gap from y=-2 to y=2
+        # Convert obstacle coordinates to grid coordinates
+        x_wall_grid, _ = world_to_grid(0, 0)  # x=0 in world coordinates
+        _, y_gap_bottom_grid = world_to_grid(0, -2)  # y=-2 in world coordinates
+        _, y_gap_top_grid = world_to_grid(0, 2)  # y=2 in world coordinates
+        _, y_bottom_grid = world_to_grid(0, -8)  # y=-8 in world coordinates
+        _, y_top_grid = world_to_grid(0, 8)  # y=8 in world coordinates
         
-        obstacle2 = ET.SubElement(obstacles, 'obstacle')
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '34'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '34'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '30', 'yr': '64'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '31', 'yr': '64'})
+        # Bottom wall segment
+        obstacles1 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle1 = ET.SubElement(obstacles1, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_wall_grid), 'yr': str(y_bottom_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_wall_grid), 'yr': str(y_gap_bottom_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_wall_grid + 1), 'yr': str(y_gap_bottom_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_wall_grid + 1), 'yr': str(y_bottom_grid)})
+        
+        # Top wall segment
+        obstacles2 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle2 = ET.SubElement(obstacles2, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_wall_grid), 'yr': str(y_gap_top_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_wall_grid), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_wall_grid + 1), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_wall_grid + 1), 'yr': str(y_gap_top_grid)})
     
     elif env_type == 'intersection':
-        obstacles = ET.SubElement(root, 'obstacles', {'number': '8'})
-        # Create a proper four-corner intersection with 8 obstacles
-        # Each corner has 2 obstacles forming the walls
+        # Create standardized intersection with 4 walls
+        # Convert obstacle coordinates to grid coordinates
+        x_left_grid, _ = world_to_grid(-6, 0)  # x=-6 in world coordinates
+        x_right_grid, _ = world_to_grid(6, 0)  # x=6 in world coordinates
+        x_left_wall_grid, _ = world_to_grid(-2, 0)  # x=-2 in world coordinates
+        x_right_wall_grid, _ = world_to_grid(2, 0)  # x=2 in world coordinates
+        _, y_bottom_grid = world_to_grid(0, -8)  # y=-8 in world coordinates
+        _, y_top_grid = world_to_grid(0, 8)  # y=8 in world coordinates
+        _, y_bottom_wall_grid = world_to_grid(0, -2)  # y=-2 in world coordinates
+        _, y_top_wall_grid = world_to_grid(0, 2)  # y=2 in world coordinates
         
-        # Top-left corner (north-west)
-        obstacle1 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
-        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '26', 'yr': '0'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '25', 'yr': '25'})
-        ET.SubElement(obstacle1, 'vertex', {'xr': '26', 'yr': '25'})
+        # Bottom wall of horizontal corridor
+        obstacles1 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle1 = ET.SubElement(obstacles1, 'obstacle')
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_bottom_wall_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_bottom_wall_grid)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_bottom_wall_grid + 1)})
+        ET.SubElement(obstacle1, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_bottom_wall_grid + 1)})
         
-        obstacle2 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '25'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '0', 'yr': '26'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '25', 'yr': '25'})
-        ET.SubElement(obstacle2, 'vertex', {'xr': '25', 'yr': '26'})
+        # Top wall of horizontal corridor
+        obstacles2 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle2 = ET.SubElement(obstacles2, 'obstacle')
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_top_wall_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_top_wall_grid)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_right_grid), 'yr': str(y_top_wall_grid + 1)})
+        ET.SubElement(obstacle2, 'vertex', {'xr': str(x_left_grid), 'yr': str(y_top_wall_grid + 1)})
         
-        # Top-right corner (north-east)
-        obstacle3 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
-        ET.SubElement(obstacle3, 'vertex', {'xr': '38', 'yr': '0'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '39', 'yr': '0'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '38', 'yr': '25'})
-        ET.SubElement(obstacle3, 'vertex', {'xr': '39', 'yr': '25'})
+        # Left wall of vertical corridor
+        obstacles3 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle3 = ET.SubElement(obstacles3, 'obstacle')
+        ET.SubElement(obstacle3, 'vertex', {'xr': str(x_left_wall_grid), 'yr': str(y_bottom_grid)})
+        ET.SubElement(obstacle3, 'vertex', {'xr': str(x_left_wall_grid), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle3, 'vertex', {'xr': str(x_left_wall_grid + 1), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle3, 'vertex', {'xr': str(x_left_wall_grid + 1), 'yr': str(y_bottom_grid)})
         
-        obstacle4 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
-        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '25'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '39', 'yr': '26'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '25'})
-        ET.SubElement(obstacle4, 'vertex', {'xr': '64', 'yr': '26'})
-        
-        # Bottom-left corner (south-west)
-        obstacle5 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
-        ET.SubElement(obstacle5, 'vertex', {'xr': '25', 'yr': '39'})
-        ET.SubElement(obstacle5, 'vertex', {'xr': '26', 'yr': '39'})
-        ET.SubElement(obstacle5, 'vertex', {'xr': '25', 'yr': '64'})
-        ET.SubElement(obstacle5, 'vertex', {'xr': '26', 'yr': '64'})
-        
-        obstacle6 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
-        ET.SubElement(obstacle6, 'vertex', {'xr': '0', 'yr': '38'})
-        ET.SubElement(obstacle6, 'vertex', {'xr': '0', 'yr': '39'})
-        ET.SubElement(obstacle6, 'vertex', {'xr': '25', 'yr': '38'})
-        ET.SubElement(obstacle6, 'vertex', {'xr': '25', 'yr': '39'})
-        
-        # Bottom-right corner (south-east)
-        obstacle7 = ET.SubElement(obstacles, 'obstacle')  # Vertical wall
-        ET.SubElement(obstacle7, 'vertex', {'xr': '38', 'yr': '39'})
-        ET.SubElement(obstacle7, 'vertex', {'xr': '39', 'yr': '39'})
-        ET.SubElement(obstacle7, 'vertex', {'xr': '38', 'yr': '64'})
-        ET.SubElement(obstacle7, 'vertex', {'xr': '39', 'yr': '64'})
-        
-        obstacle8 = ET.SubElement(obstacles, 'obstacle')  # Horizontal wall
-        ET.SubElement(obstacle8, 'vertex', {'xr': '39', 'yr': '38'})
-        ET.SubElement(obstacle8, 'vertex', {'xr': '39', 'yr': '39'})
-        ET.SubElement(obstacle8, 'vertex', {'xr': '64', 'yr': '38'})
-        ET.SubElement(obstacle8, 'vertex', {'xr': '64', 'yr': '39'})
+        # Right wall of vertical corridor
+        obstacles4 = ET.SubElement(root, 'obstacles', {'number': '1'})
+        obstacle4 = ET.SubElement(obstacles4, 'obstacle')
+        ET.SubElement(obstacle4, 'vertex', {'xr': str(x_right_wall_grid), 'yr': str(y_bottom_grid)})
+        ET.SubElement(obstacle4, 'vertex', {'xr': str(x_right_wall_grid), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle4, 'vertex', {'xr': str(x_right_wall_grid + 1), 'yr': str(y_top_grid)})
+        ET.SubElement(obstacle4, 'vertex', {'xr': str(x_right_wall_grid + 1), 'yr': str(y_bottom_grid)})
     
-    # Add algorithm section
+    # Add algorithm section (matching standardized config)
     algorithm = ET.SubElement(root, 'algorithm')
     ET.SubElement(algorithm, 'searchtype').text = 'direct'
     ET.SubElement(algorithm, 'breakingties').text = '0'
@@ -1674,86 +1832,8 @@ def main():
             
             verbose_mode = (verbose_choice == 2)
             
-            # Ask for number of robots
-            while True:
-                try:
-                    num_robots = int(input("\nEnter number of robots (1-4): "))
-                    if 0 < num_robots <= 4:
-                        break
-                    print("Invalid number! Please enter a number between 1 and 4.")
-                except ValueError:
-                    print("Invalid input! Please enter a number.")
-            
-            # Print environment-specific instructions
-            if env_type == 'hallway':
-                print("\nHallway Configuration:")
-                print("- The hallway has walls at y=31-32 and y=35-36")
-                print("- Robots should stay at y=33.5 (middle of hallway)")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'doorway':
-                print("\nDoorway Configuration:")
-                print("- The doorway has walls at x=30-31 with a gap at y=30-34")
-                print("- Y coordinates should be between 0 and 63")
-                print("- X coordinates should be between 0 and 63")
-            elif env_type == 'intersection':
-                print("\nIntersection Configuration:")
-                print("- The intersection has 8 obstacles forming corridors on all four sides")
-                print("- Central open area: x=26-38, y=26-38")
-                print("- North corridor: y=0-25 (use y=12.5 for north approach)")
-                print("- South corridor: y=39-64 (use y=51.5 for south approach)")
-                print("- East corridor: x=39-64 (use x=51.5 for east approach)")
-                print("- West corridor: x=0-25 (use x=12.5 for west approach)")
-                print("- X and Y coordinates should be between 0 and 63")
-            
-            # Get robot positions
-            robot_positions = []
-            for i in range(num_robots):
-                print(f"\nRobot {i+1} configuration:")
-                
-                # Get start position
-                while True:
-                    try:
-                        if env_type == 'hallway':
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            start_x = float(input(f"Enter start X position (0-63) for robot {i+1}: "))
-                            start_y = float(input(f"Enter start Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= start_x <= 63 and 0 <= start_y <= 63:
-                            break
-                        print("Invalid position! Please enter values between 0 and 63.")
-                    except ValueError:
-                        print("Invalid input! Please enter a number.")
-                
-                # Get goal position
-                while True:
-                    try:
-                        if env_type == 'hallway':
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = 33.5  # Fixed Y position for hallway
-                        else:
-                            goal_x = float(input(f"Enter goal X position (0-63) for robot {i+1}: "))
-                            goal_y = float(input(f"Enter goal Y position (0-63) for robot {i+1}: "))
-                        
-                        if 0 <= goal_x <= 63 and 0 <= goal_y <= 63:
-                            break
-                        print("Invalid position! Please enter values between 0 and 63.")
-                    except ValueError:
-                        print("Invalid input! Please enter a number.")
-                
-                robot_positions.append({
-                    'start_x': start_x,
-                    'start_y': start_y,
-                    'goal_x': goal_x,
-                    'goal_y': goal_y
-                })
-            
-            # Generate configuration file
-            config_file = generate_config(env_type, num_robots, robot_positions)
-            
-            # Run the simulation
-            run_social_orca(config_file, num_robots, verbose=verbose_mode)
+            # Run the simulation with user input (matching IMPC-DR format)
+            run_social_orca_standardized(env_type, verbose=verbose_mode)
         elif choice == 2:
             # Ask for environment type for IMPC-DR
             print("\nAvailable environments:")
