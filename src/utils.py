@@ -77,6 +77,49 @@ def calculate_path_deviation(actual_x: List[float], actual_y: List[float],
 		'hausdorff_distance': hausdorff_distance
 	}
 
+def calculate_invasiveness_score(agents_data, velocities_without_agent, time_step=0.1):
+    """
+    Calculate Invasiveness Score (IS) for each agent.
+    agents_data: list of dicts with 'velocities' for each agent (full simulation)
+    velocities_without_agent: list of lists, where velocities_without_agent[i] is the velocities for all agents with agent i removed
+    Returns: list of IS values, one per agent
+    """
+    num_agents = len(agents_data)
+    IS_scores = []
+    for i in range(num_agents):
+        # Run simulation with agent i removed, get velocities for other agents
+        velocities_full = [agent['velocities'] for agent in agents_data]
+        velocities_removed = velocities_without_agent[i]  # list of velocities for other agents
+        
+        IS_i = 0.0
+        for j in range(num_agents):
+            if j == i:
+                continue
+            # For agent j, compare velocities at each timestep
+            v_full = np.array(velocities_full[j])
+            v_removed = np.array(velocities_removed[j if j < i else j-1])
+            min_len = min(len(v_full), len(v_removed))
+            # L2 norm difference over time
+            diff = v_full[:min_len] - v_removed[:min_len]
+            IS_i += np.sum(np.linalg.norm(diff, axis=1)) * time_step
+        IS_scores.append(IS_i)
+    return IS_scores
+
+def calculate_fairness(agents_data, phi=None):
+    """
+    Calculate fairness (global reward) for the agents.
+    agents_data: list of dicts, each with 'path_deviation' or other reward metric
+    phi: list of weights for each agent (default: equal weights)
+    Returns: R_global
+    """
+    num_agents = len(agents_data)
+    if phi is None:
+        phi = [1.0] * num_agents  # Equal weights
+    # Example: use negative path deviation as reward
+    R_local = [-agent.get('path_deviation', 0.0) for agent in agents_data]
+    R_global = sum(phi[i] * R_local[i] for i in range(num_agents))
+    return R_global
+
 
 def create_animation(agents_data: List[Dict], output_dir: Path, 
 					config_file: str = None, time_step: float = 0.1) -> Path:
