@@ -79,46 +79,94 @@ def calculate_path_deviation(actual_x: List[float], actual_y: List[float],
 
 def calculate_invasiveness_score(agents_data, velocities_without_agent, time_step=0.1):
     """
-    Calculate Invasiveness Score (IS) for each agent.
-    agents_data: list of dicts with 'velocities' for each agent (full simulation)
-    velocities_without_agent: list of lists, where velocities_without_agent[i] is the velocities for all agents with agent i removed
-    Returns: list of IS values, one per agent
+    Calculate Invasiveness Score (IS) as defined in the paper.
+    
+    Parameters:
+    - agents_data: List of dicts with 'velocities' for each agent (full simulation)
+    - velocities_without_agent: List of lists, where velocities_without_agent[i] is the velocities 
+      for all agents with agent i removed
+    - time_step: Time step between velocity measurements
+    
+    Returns: 
+    - Total invasiveness score across all agents
+    - None if required data is not available
     """
+    # Check if we have valid data
     num_agents = len(agents_data)
-    IS_scores = []
+    if not velocities_without_agent or len(velocities_without_agent) != num_agents:
+        return None
+        
+    # Calculate total invasiveness across all agents
+    total_invasiveness = 0.0
+    
     for i in range(num_agents):
         # Run simulation with agent i removed, get velocities for other agents
-        velocities_full = [agent['velocities'] for agent in agents_data]
-        velocities_removed = velocities_without_agent[i]  # list of velocities for other agents
-        
-        IS_i = 0.0
-        for j in range(num_agents):
-            if j == i:
-                continue
-            # For agent j, compare velocities at each timestep
-            v_full = np.array(velocities_full[j])
-            v_removed = np.array(velocities_removed[j if j < i else j-1])
-            min_len = min(len(v_full), len(v_removed))
-            # L2 norm difference over time
-            diff = v_full[:min_len] - v_removed[:min_len]
-            IS_i += np.sum(np.linalg.norm(diff, axis=1)) * time_step
-        IS_scores.append(IS_i)
-    return IS_scores
+        try:
+            velocities_full = [agent.get('velocities', []) for agent in agents_data]
+            velocities_removed = velocities_without_agent[i]  # list of velocities for other agents
+            
+            IS_i = 0.0  # Invasiveness score for agent i
+            
+            for j in range(num_agents):
+                if j == i:
+                    continue
+                    
+                # Get index in velocities_removed (accounts for removed agent)
+                removed_idx = j if j < i else j-1
+                
+                # Skip if we don't have velocity data
+                if j >= len(velocities_full) or not velocities_full[j]:
+                    continue
+                if removed_idx >= len(velocities_removed) or not velocities_removed[removed_idx]:
+                    continue
+                    
+                # For agent j, compare velocities at each timestep
+                v_full = np.array(velocities_full[j])
+                v_removed = np.array(velocities_removed[removed_idx])
+                min_len = min(len(v_full), len(v_removed))
+                
+                # Skip if no data available
+                if min_len == 0:
+                    continue
+                    
+                # L2 norm difference over time (integrating the control deviation)
+                diff = v_full[:min_len] - v_removed[:min_len]
+                effect = np.sum(np.linalg.norm(diff, axis=1)) * time_step
+                
+                # Add to total invasiveness score for this agent
+                IS_i += effect
+            
+            # Add this agent's invasiveness to the total
+            total_invasiveness += IS_i
+            
+        except Exception:
+            # Skip this agent if there's any error in calculation
+            continue
+    
+    return total_invasiveness
 
 def calculate_fairness(agents_data, phi=None):
     """
-    Calculate fairness (global reward) for the agents.
-    agents_data: list of dicts, each with 'path_deviation' or other reward metric
-    phi: list of weights for each agent (default: equal weights)
-    Returns: R_global
+    Calculate fairness (global social welfare) for the agents.
+    
+    Parameters:
+    - agents_data: List of dicts, each with 'path_deviation' or other reward metric
+    - phi: List of weights for each agent (default: equal weights)
+    
+    Returns: 
+    - Global social welfare value as described in the paper
     """
     num_agents = len(agents_data)
     if phi is None:
         phi = [1.0] * num_agents  # Equal weights
-    # Example: use negative path deviation as reward
+        
+    # Use negative path deviation as local reward (better paths = higher rewards)
     R_local = [-agent.get('path_deviation', 0.0) for agent in agents_data]
-    R_global = sum(phi[i] * R_local[i] for i in range(num_agents))
-    return R_global
+    
+    # Calculate global social welfare (sum of weighted rewards)
+    global_welfare = sum(phi[i] * R_local[i] for i in range(num_agents))
+    
+    return global_welfare
 
 
 def create_animation(agents_data: List[Dict], output_dir: Path, 
