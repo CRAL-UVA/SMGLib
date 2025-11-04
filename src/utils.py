@@ -243,6 +243,57 @@ def create_animation(agents_data: List[Dict], output_dir: Path,
 	plt.close(fig)
 	return saved_path
 
+def calculate_oscillation_statistics(velocity, acceleration, heading, dt=0.1, weights={'v_zcr': 0.25,'jerk_energy': 0.25,'speed_ripple': 0.25,'heading_osc': 0.25}):
+    n = len(velocity)
+    if n < 5:
+        raise ValueError("Input arrays too short for oscillation metrics")
+
+    # Velocity Zero-Crossing Rate (ZCR)
+    acc_sign = np.sign(acceleration)
+    zc = np.sum(np.abs(np.diff(acc_sign)) > 0)
+    velocity_zero_cross_rate = zc / (n * dt)  # crossings per second
+
+    # Jerk Energy
+    jerk = np.diff(acceleration) / dt
+    jerk_energy = np.mean(jerk ** 2)
+
+    # Speed Ripple Index (SRI)
+    mean_v = np.mean(velocity)
+    speed_ripple_index = np.std(velocity) / (mean_v + 1e-6)
+
+    # Heading Oscillation Index (HOI)
+    dtheta = np.diff(heading)
+    dtheta = (dtheta + np.pi) % (2 * np.pi) - np.pi  # wrap to [-pi, pi]
+    ddtheta = np.diff(dtheta)
+    heading_oscillation_index = np.mean(np.abs(ddtheta))
+
+    # --- Normalization (robust sigmoid for comparability)
+    def robust_sigmoid(x):
+        return 1 / (1 + np.exp(-((x - np.median(x)) / (1.4826 * (np.std(x) + 1e-8)))))
+
+    components = {
+        'v_zcr': velocity_zero_cross_rate,
+        'jerk_energy': jerk_energy,
+        'speed_ripple': speed_ripple_index,
+        'heading_osc': heading_oscillation_index
+    }
+
+    # --- Weighted sum (you can pre-normalize by scenario later)
+    osc_score = (
+        weights['v_zcr'] * components['v_zcr'] +
+        weights['jerk_energy'] * components['jerk_energy'] +
+        weights['speed_ripple'] * components['speed_ripple'] +
+        weights['heading_osc'] * components['heading_osc']
+    )
+
+    return {
+        'velocity_zero_cross_rate': float(velocity_zero_cross_rate),
+        'jerk_energy': float(jerk_energy),
+        'speed_ripple_index': float(speed_ripple_index),
+        'heading_oscillation_index': float(heading_oscillation_index),
+        'oscillation_score': float(osc_score)
+    }
+
 
 def calculate_makespan_ratios(completion_times: List[float]) -> List[float]:
 	"""Calculate makespan ratios for agents."""
