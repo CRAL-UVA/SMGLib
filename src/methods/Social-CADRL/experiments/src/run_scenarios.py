@@ -1156,10 +1156,12 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
     print(f"\nSOCIAL-CADRL RESULTS")
     print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
     print()
-    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation")
     
     # Calculate fastest time for MR calculation
     fastest_time = min(completion_times) if completion_times else 1.0
+    
+    from src.utils import calculate_oscillation_statistics
     
     for i, agent in enumerate(agent_data):
         agent_id = agent['id']
@@ -1187,7 +1189,25 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
         else:
             hausdorff = 0.0
         
-        print(f"Robot {agent_id}   {ttg:<3}  {mr:<6.3f} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+        # Oscillation
+        oscillation_score = 0.0
+        if agent['velocities'] and len(agent['velocities']) >= 5:
+            try:
+                # Calculate velocity, acceleration, and heading
+                velocities = np.array(agent['velocities'])
+                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
+                acceleration = np.diff(velocity_mag) / time_step
+                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
+                
+                # Ensure we have enough data points
+                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
+                    osc_stats = calculate_oscillation_statistics(
+                        velocity_mag, acceleration, heading, dt=time_step)
+                    oscillation_score = osc_stats['oscillation_score']
+            except (ValueError, IndexError):
+                oscillation_score = 0.0
+        
+        print(f"Robot {agent_id}   {ttg:<3}  {mr:<6.3f} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}   {oscillation_score:<11.3f}")
     
     return {
         'makespan': makespan,

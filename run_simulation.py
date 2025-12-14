@@ -156,18 +156,21 @@ def generate_orca_csvs(log_file, output_dir):
 
 def evaluate_velocities(velocity_csv, verbose=True):
     """Evaluate the velocities using the evaluate module."""
+    from src.utils import calculate_oscillation_statistics
+    
     # Read the velocity CSV
     data = pd.read_csv(velocity_csv)
     
     # Process each robot's velocities
     robot_ids = []
     velocity_metrics = {}
+    oscillation_metrics = {}
     for col in data.columns:
         if col.endswith('_vx'):
             robot_id = col.split('_')[1]
             robot_ids.append(robot_id)
     
-    # Calculate average delta velocity for each robot
+    # Calculate average delta velocity and oscillation for each robot
     for robot_id in robot_ids:
         vx_col = f'robot_{robot_id}_vx'
         vy_col = f'robot_{robot_id}_vy'
@@ -182,13 +185,31 @@ def evaluate_velocities(velocity_csv, verbose=True):
         
         velocity_metrics[robot_id] = sum_abs_diffs
         
+        # Calculate oscillation
+        oscillation_score = 0.0
+        velocities = data[[vx_col, vy_col]].values
+        if len(velocities) >= 5:
+            try:
+                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
+                acceleration = np.diff(velocity_mag) / 0.1  # assuming dt=0.1
+                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
+                
+                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
+                    osc_stats = calculate_oscillation_statistics(
+                        velocity_mag, acceleration, heading, dt=0.1)
+                    oscillation_score = osc_stats['oscillation_score']
+            except (ValueError, IndexError):
+                oscillation_score = 0.0
+        
+        oscillation_metrics[robot_id] = oscillation_score
+        
         if verbose:
             # Print the average delta velocity
             print("*" * 65)
             print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")
             print("*" * 65)
     
-    return velocity_metrics
+    return velocity_metrics, oscillation_metrics
 
 def get_num_robots_from_config(config_file):
     """Extract number of robots from config file."""
@@ -670,7 +691,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
                 print(f"Hausdorff distance: {hausdorff_dist:.4f}")
                 print("*" * 65)
         
-        velocity_metrics = evaluate_velocities(velocity_csv, verbose)
+        velocity_metrics, oscillation_metrics = evaluate_velocities(velocity_csv, verbose)
         
         # After evaluating trajectories, compute Makespan Ratios for Social-ORCA
         ttg_list = []
@@ -945,6 +966,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
             display_clean_orca_metrics(
                 trajectory_metrics,
                 velocity_metrics,
+                oscillation_metrics,
                 ttg_metrics,
                 flow_rate,
                 makespan,
@@ -1052,7 +1074,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                             # Use the user-selected verbose mode
                             
                             trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
-                            velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                            velocity_metrics, oscillation_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                             
                             # Display clean metrics if not in verbose mode
                             # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
@@ -1060,6 +1082,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                                 display_clean_impc_metrics(
                                     trajectory_results['trajectory_metrics'],
                                     velocity_metrics,
+                                    oscillation_metrics,
                                     trajectory_results['ttg_metrics'],
                                     trajectory_results['flow_rate'],
                                     trajectory_results['makespan'],
@@ -1098,7 +1121,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                         
                         # Evaluate trajectories and velocities
                         trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
-                        velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                        velocity_metrics, oscillation_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                         
                         # Display clean metrics if not in verbose mode
                         # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
@@ -1106,6 +1129,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                             display_clean_impc_metrics(
                                 trajectory_results['trajectory_metrics'],
                                 velocity_metrics,
+                                oscillation_metrics,
                                 trajectory_results['ttg_metrics'],
                                 trajectory_results['flow_rate'],
                                 trajectory_results['makespan'],
@@ -1198,6 +1222,8 @@ def setup_impc_environment(impc_dir):
 
 def evaluate_impc_velocities(impc_dir, verbose=True):
     """Evaluate IMPC-DR velocities and calculate average delta velocity."""
+    from src.utils import calculate_oscillation_statistics
+    
     if verbose:
         print("\nEvaluating Social-IMPC-DR velocities:")
     
@@ -1207,9 +1233,10 @@ def evaluate_impc_velocities(impc_dir, verbose=True):
     if not velocity_files:
         if verbose:
             print("No velocity CSV files found")
-        return {}
+        return {}, {}
     
     velocity_metrics = {}
+    oscillation_metrics = {}
     for velocity_file in velocity_files:
         robot_id = velocity_file.stem.split('_')[-1]
         data = pd.read_csv(velocity_file)
@@ -1224,13 +1251,31 @@ def evaluate_impc_velocities(impc_dir, verbose=True):
         
         velocity_metrics[robot_id] = sum_abs_diffs
         
+        # Calculate oscillation
+        oscillation_score = 0.0
+        velocities = data[['vx', 'vy']].values
+        if len(velocities) >= 5:
+            try:
+                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
+                acceleration = np.diff(velocity_mag) / 0.1  # assuming dt=0.1
+                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
+                
+                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
+                    osc_stats = calculate_oscillation_statistics(
+                        velocity_mag, acceleration, heading, dt=0.1)
+                    oscillation_score = osc_stats['oscillation_score']
+            except (ValueError, IndexError):
+                oscillation_score = 0.0
+        
+        oscillation_metrics[robot_id] = oscillation_score
+        
         if verbose:
             # Print the average delta velocity
             print("*" * 65)
             print(f"Avg delta velocity for robot {robot_id}: {sum_abs_diffs:.4f}")
             print("*" * 65)
     
-    return velocity_metrics
+    return velocity_metrics, oscillation_metrics
 
 def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=True):
     """Evaluate IMPC-DR trajectories and calculate metrics."""
@@ -1414,7 +1459,7 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose
         'max_steps': max_steps
     }
 
-def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
+def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, oscillation_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
 	"""Display IMPC DR metrics in clean minimal format."""
 	print("\nSOCIAL-IMPC-DR RESULTS")
 	
@@ -1432,7 +1477,7 @@ def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
 	
 	print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
 	print()
-	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation")
 	
 	# Get sorted robot IDs for consistent display
 	robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
@@ -1444,13 +1489,14 @@ def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
 		avg_delta_v = velocity_metrics.get(robot_id, 0.0)
 		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
 		hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+		oscillation = oscillation_metrics.get(robot_id, 0.0)
 		
 		# Handle infinite MR (when robot didn't reach goal)
 		mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
 		
-		print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+		print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}   {oscillation:<11.3f}")
 
-def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
+def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, oscillation_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
 	"""Display ORCA metrics in clean minimal format."""
 	print("\nSOCIAL-ORCA RESULTS")
 	
@@ -1468,7 +1514,7 @@ def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
 	
 	print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
 	print()
-	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation")
 	
 	# Get sorted robot IDs for consistent display
 	robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
@@ -1484,12 +1530,13 @@ def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
 		avg_delta_v = velocity_metrics.get(robot_id, 0.0)
 		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
 		hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+		oscillation = oscillation_metrics.get(robot_id, 0.0)
 		
 		# Handle infinite MR (when robot didn't reach goal)
 		mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
 		ttg_str = "∞" if ttg == float('inf') else str(ttg)
 		
-		print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+		print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}   {oscillation:<11.3f}")
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
