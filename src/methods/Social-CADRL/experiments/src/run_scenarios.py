@@ -292,6 +292,7 @@ def get_standardized_cadrl_config(scenario_type):
         print("- X coordinates should be between -5 and 5")
     
     user_agents = []
+    fairness_priorities = []
     defaults = get_default_values(scenario_type)
     
     for i in range(num_agents):
@@ -303,20 +304,23 @@ def get_standardized_cadrl_config(scenario_type):
             start_y = get_float_input(f"Start Y position (default: {defaults['start_y']})", defaults['start_y'])
             goal_x = get_float_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'])
             goal_y = get_float_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'])
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
         elif i == 1 and 'agent2' in defaults:
             agent2_defaults = defaults['agent2']
             start_x = get_float_input(f"Start X position (default: {agent2_defaults['start_x']})", agent2_defaults['start_x'])
             start_y = get_float_input(f"Start Y position (default: {agent2_defaults['start_y']})", agent2_defaults['start_y'])
             goal_x = get_float_input(f"Goal X position (default: {agent2_defaults['goal_x']})", agent2_defaults['goal_x'])
             goal_y = get_float_input(f"Goal Y position (default: {agent2_defaults['goal_y']})", agent2_defaults['goal_y'])
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
         else:
             start_x = get_float_input("Start X position")
             start_y = get_float_input("Start Y position")
             goal_x = get_float_input("Goal X position")
             goal_y = get_float_input("Goal Y position")
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
+            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
         
         # Use default values for radius, speed, and heading
         radius = defaults.get('radius', 0.5)
@@ -327,8 +331,9 @@ def get_standardized_cadrl_config(scenario_type):
             heading = defaults.get('heading', 0.0)
             
         user_agents.append((start_x, start_y, goal_x, goal_y, radius, pref_speed, heading))
+        fairness_priorities.append(fairness_priority)
     
-    return user_agents
+    return user_agents, fairness_priorities
 
 def get_agent_parameters(num_agents, scenario_type):
     """Get agent parameters from user"""
@@ -386,7 +391,7 @@ def get_agent_parameters(num_agents, scenario_type):
     
     return user_agents
 
-def run_scenario(scenario_type, user_agents, num_steps=150, verbose=True):
+def run_scenario(scenario_type, user_agents, fairness_priorities=None, num_steps=150, verbose=True):
     """Run the specified scenario with user-defined agents"""
     # Create single tf session for all experiments
     import tensorflow.compat.v1 as tf
@@ -655,7 +660,7 @@ def run_scenario(scenario_type, user_agents, num_steps=150, verbose=True):
     if verbose:
         evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
     else:
-        evaluation_results = display_clean_cadrl_metrics(agent_tracking_data, scenario_type, time_step)
+        evaluation_results = display_clean_cadrl_metrics(agent_tracking_data, scenario_type, time_step, fairness_priorities)
     
     # Save trajectory data for further analysis
     root_dir = Path(__file__).resolve().parents[5]
@@ -1087,7 +1092,7 @@ def save_cadrl_trajectory_data(agent_data, output_dir, time_step):
     
     return velocity_csv
 
-def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1):
+def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairness_priorities=None):
     """Display CADRL metrics in clean minimal format similar to IMPC-DR."""
     if not agent_data:
         return {}
@@ -1128,8 +1133,28 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1):
     
     success_rate = (successful_agents / len(agent_data)) * 100 if agent_data else 0
     
+    # Calculate fairness using path deviations
+    import sys
+    import os
+    # Add SMGLib root to path to import utils
+    smglib_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+    if smglib_root not in sys.path:
+        sys.path.insert(0, smglib_root)
+    from src.utils import calculate_fairness
+    
+    agents_data_for_fairness = []
+    for agent in agent_data:
+        if agent['positions']:
+            avg_dev, max_dev, actual_length, nominal_length = calculate_path_deviation(
+                agent['positions'], agent['start_pos'], agent['goal_pos'])
+            agents_data_for_fairness.append({'path_deviation': avg_dev})
+        else:
+            agents_data_for_fairness.append({'path_deviation': 0.0})
+    
+    fairness = calculate_fairness(agents_data_for_fairness, fairness_priorities)
+    
     print(f"\nSOCIAL-CADRL RESULTS")
-    print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
+    print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
     print()
     print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
     
@@ -1172,16 +1197,16 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1):
     }
 
 def run_standardized_cadrl(scenario_type, verbose=False):
-    """Run CADRL with standardized interface similar to IMPC-DR."""
-    # Get configuration using standardized interface
-    user_agents = get_standardized_cadrl_config(scenario_type)
-    
-    print("\nStarting simulation...")
-    
-    # Run the scenario with default steps and verbose setting
-    evaluation_results = run_scenario(scenario_type, user_agents, num_steps=150, verbose=verbose)
-    
-    return evaluation_results
+	"""Run CADRL with standardized interface similar to IMPC-DR."""
+	# Get configuration using standardized interface
+	user_agents, fairness_priorities = get_standardized_cadrl_config(scenario_type)
+	
+	print("\nStarting simulation...")
+	
+	# Run the scenario with default steps and verbose setting
+	evaluation_results = run_scenario(scenario_type, user_agents, fairness_priorities, num_steps=150, verbose=verbose)
+	
+	return evaluation_results
 
 def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
     """Evaluate CADRL performance with comprehensive metrics for moving robots only."""

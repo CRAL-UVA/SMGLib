@@ -661,5 +661,32 @@ def get_standardized_positions(env_type, num_agents=2):
     return StandardizedEnvironment.get_standard_agent_positions(env_type, num_agents)
 
 def create_standardized_plot(env_type, show_obstacles=True):
-    """Create a standardized plot for the specified environment type."""
-    return StandardizedEnvironment.create_standard_plot(env_type, show_obstacles) 
+	"""Create a standardized plot for the specified environment type."""
+	return StandardizedEnvironment.create_standard_plot(env_type, show_obstacles)
+
+
+def calculate_fairness(agents_data, phi=None):
+	"""
+	Calculate fairness (global social welfare) for the agents.
+	
+	Parameters:
+	- agents_data: List of dicts, each with 'path_deviation' or other reward metric
+	- phi: List of weights for each agent (default: equal weights)
+	
+	Returns: 
+	- Global social welfare value as described in the paper
+	"""
+	num_agents = len(agents_data)
+	if num_agents == 0:
+		return 0.0
+	
+	if phi is None:
+		phi = [1.0] * num_agents  # Equal weights
+
+	# Use negative path deviation as local reward (better paths = higher rewards)
+	R_local = [-agent.get('path_deviation', 0.0) for agent in agents_data]
+
+	# Calculate global social welfare (sum of weighted rewards)
+	global_welfare = sum(phi[i] * R_local[i] for i in range(num_agents))
+
+	return global_welfare

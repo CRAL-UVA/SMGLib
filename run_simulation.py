@@ -197,6 +197,21 @@ def get_num_robots_from_config(config_file):
     agents = root.findall('.//agent')
     return len(agents)
 
+def get_priorities_from_config(config_file):
+    """Extract fairness priorities from config file."""
+    try:
+        tree = ET.parse(config_file)
+        root = tree.getroot()
+        agents = root.findall('.//agent')
+        priorities = []
+        for agent in agents:
+            priority = agent.get('priority', '1.0')
+            priorities.append(float(priority))
+        return priorities
+    except:
+        # If we can't extract priorities, return None (will use default equal weights)
+        return None
+
 def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None, num_robots=None):
     """Generate an animation of robot movements."""
     # Create animations directory in the main SMGLib logs folder
@@ -417,13 +432,16 @@ def run_social_orca_standardized(env_type, verbose=False):
         goal_x = get_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'], float)
         goal_y = get_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'], float)
         
+        # Get fairness weight 
+        fairness_priority = get_input(f"Fairness Priority (default: 1)", 1, float)
+
         robot_positions.append({
             'start_x': start_x,
             'start_y': start_y,
             'goal_x': goal_x,
-            'goal_y': goal_y
+            'goal_y': goal_y,
+            'priority': fairness_priority
         })
-        
         print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
     
     # Generate configuration file with user input
@@ -921,6 +939,9 @@ def run_social_orca(config_file, num_robots, verbose=False):
             else:
                 environment = 'unknown'
             
+            # Extract fairness priorities from config
+            fairness_priorities = get_priorities_from_config(config_path)
+            
             display_clean_orca_metrics(
                 trajectory_metrics,
                 velocity_metrics,
@@ -929,7 +950,8 @@ def run_social_orca(config_file, num_robots, verbose=False):
                 makespan,
                 success_rate,
                 environment,
-                num_robots
+                num_robots,
+                fairness_priorities
             )
             
     except Exception as e:
@@ -1033,6 +1055,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                             velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                             
                             # Display clean metrics if not in verbose mode
+                            # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                             if not verbose and trajectory_results:
                                 display_clean_impc_metrics(
                                     trajectory_results['trajectory_metrics'],
@@ -1042,7 +1065,8 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                                     trajectory_results['makespan'],
                                     trajectory_results['success_rate'],
                                     trajectory_results['environment'],
-                                    trajectory_results['num_agents']
+                                    trajectory_results['num_agents'],
+                                    None  # IMPC-DR uses equal fairness priorities
                                 )
                         else:
                             print("⚠ No trajectory files found")
@@ -1077,6 +1101,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                         velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                         
                         # Display clean metrics if not in verbose mode
+                        # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                         if not verbose and trajectory_results:
                             display_clean_impc_metrics(
                                 trajectory_results['trajectory_metrics'],
@@ -1086,7 +1111,8 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                                 trajectory_results['makespan'],
                                 trajectory_results['success_rate'],
                                 trajectory_results['environment'],
-                                trajectory_results['num_agents']
+                                trajectory_results['num_agents'],
+                                None  # IMPC-DR uses equal fairness priorities
                             )
                     else:
                         print("⚠ No trajectory files found")
@@ -1388,64 +1414,82 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose
         'max_steps': max_steps
     }
 
-def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
-    """Display IMPC DR metrics in clean minimal format."""
-    print("\nSOCIAL-IMPC-DR RESULTS")
-    
-    # Calculate successful agents count
-    successful_count = sum(1 for robot_id in ttg_metrics if ttg_metrics[robot_id].get('reached_goal', False))
-    
-    print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
-    print()
-    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
-    
-    # Get sorted robot IDs for consistent display
-    robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
-    
-    for robot_id in robot_ids:
-        # Get metrics for this robot
-        ttg = ttg_metrics.get(robot_id, {}).get('ttg', 0)
-        mr = ttg_metrics.get(robot_id, {}).get('mr', 0.0)
-        avg_delta_v = velocity_metrics.get(robot_id, 0.0)
-        path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
-        hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
-        
-        # Handle infinite MR (when robot didn't reach goal)
-        mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
-        
-        print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
+	"""Display IMPC DR metrics in clean minimal format."""
+	print("\nSOCIAL-IMPC-DR RESULTS")
+	
+	# Calculate successful agents count
+	successful_count = sum(1 for robot_id in ttg_metrics if ttg_metrics[robot_id].get('reached_goal', False))
+	
+	# Calculate fairness
+	from src.utils import calculate_fairness
+	agents_data = []
+	robot_ids = sorted(trajectory_metrics.keys())
+	for robot_id in robot_ids:
+		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+		agents_data.append({'path_deviation': path_dev})
+	fairness = calculate_fairness(agents_data, fairness_priorities)
+	
+	print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
+	print()
+	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+	
+	# Get sorted robot IDs for consistent display
+	robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
+	
+	for robot_id in robot_ids:
+		# Get metrics for this robot
+		ttg = ttg_metrics.get(robot_id, {}).get('ttg', 0)
+		mr = ttg_metrics.get(robot_id, {}).get('mr', 0.0)
+		avg_delta_v = velocity_metrics.get(robot_id, 0.0)
+		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+		hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+		
+		# Handle infinite MR (when robot didn't reach goal)
+		mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
+		
+		print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
 
-def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
-    """Display ORCA metrics in clean minimal format."""
-    print("\nSOCIAL-ORCA RESULTS")
-    
-    # Calculate successful agents count from ttg_metrics
-    successful_count = sum(1 for ttg in ttg_metrics.values() if ttg < float('inf'))
-    
-    print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
-    print()
-    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
-    
-    # Get sorted robot IDs for consistent display
-    robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
-    
-    for robot_id in robot_ids:
-        # Get metrics for this robot
-        ttg = ttg_metrics.get(robot_id, float('inf'))
-        # Calculate MR (need fastest TTG for calculation)
-        finite_ttgs = [t for t in ttg_metrics.values() if t < float('inf')]
-        fastest_ttg = min(finite_ttgs) if finite_ttgs else 1
-        mr = ttg / fastest_ttg if ttg != float('inf') and fastest_ttg > 0 else float('inf')
-        
-        avg_delta_v = velocity_metrics.get(robot_id, 0.0)
-        path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
-        hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
-        
-        # Handle infinite MR (when robot didn't reach goal)
-        mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
-        ttg_str = "∞" if ttg == float('inf') else str(ttg)
-        
-        print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
+def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness_priorities=None):
+	"""Display ORCA metrics in clean minimal format."""
+	print("\nSOCIAL-ORCA RESULTS")
+	
+	# Calculate successful agents count from ttg_metrics
+	successful_count = sum(1 for ttg in ttg_metrics.values() if ttg < float('inf'))
+	
+	# Calculate fairness
+	from src.utils import calculate_fairness
+	agents_data = []
+	robot_ids = sorted(trajectory_metrics.keys())
+	for robot_id in robot_ids:
+		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+		agents_data.append({'path_deviation': path_dev})
+	fairness = calculate_fairness(agents_data, fairness_priorities)
+	
+	print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
+	print()
+	print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
+	
+	# Get sorted robot IDs for consistent display
+	robot_ids = sorted(set(list(trajectory_metrics.keys()) + list(velocity_metrics.keys()) + list(ttg_metrics.keys())))
+	
+	for robot_id in robot_ids:
+		# Get metrics for this robot
+		ttg = ttg_metrics.get(robot_id, float('inf'))
+		# Calculate MR (need fastest TTG for calculation)
+		finite_ttgs = [t for t in ttg_metrics.values() if t < float('inf')]
+		fastest_ttg = min(finite_ttgs) if finite_ttgs else 1
+		mr = ttg / fastest_ttg if ttg != float('inf') and fastest_ttg > 0 else float('inf')
+		
+		avg_delta_v = velocity_metrics.get(robot_id, 0.0)
+		path_dev = trajectory_metrics.get(robot_id, {}).get('l2_norm', 0.0)
+		hausdorff = trajectory_metrics.get(robot_id, {}).get('hausdorff_dist', 0.0)
+		
+		# Handle infinite MR (when robot didn't reach goal)
+		mr_str = "∞" if mr == float('inf') else f"{mr:.3f}"
+		ttg_str = "∞" if ttg == float('inf') else str(ttg)
+		
+		print(f"Robot {robot_id}   {ttg_str:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
 
 def generate_config(env_type, num_robots, robot_positions):
     """Generate a configuration file for the simulation."""
@@ -1475,12 +1519,16 @@ def generate_config(env_type, num_robots, robot_positions):
         start_x_grid, start_y_grid = world_to_grid(robot_positions[i]['start_x'], robot_positions[i]['start_y'])
         goal_x_grid, goal_y_grid = world_to_grid(robot_positions[i]['goal_x'], robot_positions[i]['goal_y'])
         
+        # Get priority if available, default to 1.0
+        priority = robot_positions[i].get('priority', 1.0)
+        
         agent = ET.SubElement(agents, 'agent', {
             'id': str(i),
             'start.xr': str(start_x_grid),
             'start.yr': str(start_y_grid),
             'goal.xr': str(goal_x_grid),
-            'goal.yr': str(goal_y_grid)
+            'goal.yr': str(goal_y_grid),
+            'priority': str(priority)
         })
     
     # Add map section with 64x64 grid (matching original ORCA configs)
