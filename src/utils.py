@@ -248,48 +248,53 @@ def calculate_oscillation_statistics(velocity, acceleration, heading, dt=0.1, we
     if n < 5:
         raise ValueError("Input arrays too short for oscillation metrics")
 
-    # Velocity Zero-Crossing Rate (ZCR)
+    # Velocity Zero-Crossing Rate (ZCR) - normalized by a typical threshold
     acc_sign = np.sign(acceleration)
     zc = np.sum(np.abs(np.diff(acc_sign)) > 0)
     velocity_zero_cross_rate = zc / (n * dt)  # crossings per second
+    # Normalize: typical smooth motion has 0-2 crossings/s, oscillatory motion has >5
+    v_zcr_normalized = min(velocity_zero_cross_rate / 10.0, 1.0)  # scale to 0-1
 
-    # Jerk Energy
+    # Jerk Energy - use RMS jerk, normalized
     jerk = np.diff(acceleration) / dt
-    jerk_energy = np.mean(jerk ** 2)
+    jerk_rms = np.sqrt(np.mean(jerk ** 2))  # RMS jerk
+    # Normalize: typical smooth motion has jerk < 1, oscillatory > 3
+    jerk_normalized = min(jerk_rms / 5.0, 1.0)  # scale to 0-1
 
-    # Speed Ripple Index (SRI)
+    # Speed Ripple Index (SRI) - already normalized (coefficient of variation)
     mean_v = np.mean(velocity)
     speed_ripple_index = np.std(velocity) / (mean_v + 1e-6)
+    # Cap at 1.0 for very oscillatory motion
+    sri_normalized = min(speed_ripple_index, 1.0)
 
-    # Heading Oscillation Index (HOI)
+    # Heading Oscillation Index (HOI) - normalize by typical values
     dtheta = np.diff(heading)
     dtheta = (dtheta + np.pi) % (2 * np.pi) - np.pi  # wrap to [-pi, pi]
     ddtheta = np.diff(dtheta)
-    heading_oscillation_index = np.mean(np.abs(ddtheta))
-
-    # --- Normalization (robust sigmoid for comparability)
-    def robust_sigmoid(x):
-        return 1 / (1 + np.exp(-((x - np.median(x)) / (1.4826 * (np.std(x) + 1e-8)))))
+    heading_oscillation = np.mean(np.abs(ddtheta)) / dt  # rad/s^2
+    # Normalize: smooth motion < 0.5 rad/s^2, oscillatory > 2 rad/s^2
+    hoi_normalized = min(heading_oscillation / 2.0, 1.0)  # scale to 0-1
 
     components = {
         'v_zcr': velocity_zero_cross_rate,
-        'jerk_energy': jerk_energy,
+        'jerk_energy': jerk_rms,
         'speed_ripple': speed_ripple_index,
-        'heading_osc': heading_oscillation_index
+        'heading_osc': heading_oscillation
     }
 
+    # Weighted sum of normalized components (result between 0-1)
     osc_score = (
-        weights['v_zcr'] * components['v_zcr'] +
-        weights['jerk_energy'] * components['jerk_energy'] +
-        weights['speed_ripple'] * components['speed_ripple'] +
-        weights['heading_osc'] * components['heading_osc']
+        weights['v_zcr'] * v_zcr_normalized +
+        weights['jerk_energy'] * jerk_normalized +
+        weights['speed_ripple'] * sri_normalized +
+        weights['heading_osc'] * hoi_normalized
     )
 
     return {
         'velocity_zero_cross_rate': float(velocity_zero_cross_rate),
-        'jerk_energy': float(jerk_energy),
+        'jerk_energy': float(jerk_rms),
         'speed_ripple_index': float(speed_ripple_index),
-        'heading_oscillation_index': float(heading_oscillation_index),
+        'heading_oscillation_index': float(heading_oscillation),
         'oscillation_score': float(osc_score)
     }
 

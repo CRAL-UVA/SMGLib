@@ -209,6 +209,13 @@ def evaluate_velocities(velocity_csv, verbose=True):
                     osc_stats = calculate_oscillation_statistics(
                         velocity_mag, acceleration, heading, dt=0.1)
                     oscillation_score = osc_stats['oscillation_score']
+                    if verbose:
+                        print(f"Robot {robot_id} Oscillation Components:")
+                        print(f"  V-ZCR: {osc_stats['velocity_zero_cross_rate']:.4f}")
+                        print(f"  Jerk Energy: {osc_stats['jerk_energy']:.4f}")
+                        print(f"  Speed Ripple: {osc_stats['speed_ripple_index']:.4f}")
+                        print(f"  Heading Osc: {osc_stats['heading_oscillation_index']:.4f}")
+                        print(f"  Total Score: {oscillation_score:.4f}")
             except (ValueError, IndexError):
                 oscillation_score = 0.0
         
