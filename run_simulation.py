@@ -60,6 +60,11 @@ def parse_orca_log(log_file):
     # Then process the log data
     for agent_log in log_section.findall('agent'):
         agent_id = int(agent_log.get('id'))
+        
+        # Only process agents that are defined in the config (skip extra agents)
+        if agent_id not in agent_defs:
+            continue
+        
         agent_def = agent_defs[agent_id]
         
         positions = []
@@ -108,6 +113,12 @@ def generate_orca_csvs(log_file, output_dir):
     
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Clean up old trajectory files from previous runs
+    for old_file in output_dir.glob("robot_*_trajectory.csv"):
+        old_file.unlink()
+    for old_file in output_dir.glob("velocities.csv"):
+        old_file.unlink()
     
     # Create velocity CSV file
     velocity_csv = output_dir / "velocities.csv"
@@ -661,9 +672,12 @@ def run_social_orca(config_file, num_robots, verbose=False):
         trajectory_files = list(trajectory_dir.glob("robot_*_trajectory.csv"))
         
         trajectory_metrics = {}
-        for i, traj_file in enumerate(trajectory_files):
+        for traj_file in trajectory_files:
+            # Extract robot ID from filename (e.g., "robot_0_trajectory.csv" -> "0")
+            robot_id = traj_file.stem.split('_')[1]
+            
             if verbose:
-                print(f"\nEvaluating Robot {i} trajectory:")
+                print(f"\nEvaluating Robot {robot_id} trajectory:")
             data = pd.read_csv(traj_file)
             
             # Extract coordinates
@@ -679,14 +693,14 @@ def run_social_orca(config_file, num_robots, verbose=False):
             nominal_trajectory = np.column_stack((nominal_x, nominal_y))
             hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
             
-            trajectory_metrics[str(i)] = {
+            trajectory_metrics[robot_id] = {
                 'l2_norm': l2_norm,
                 'hausdorff_dist': hausdorff_dist
             }
             
             if verbose:
                 print("*" * 65)
-                print(f"Robot {i} Path Deviation Metrics:")
+                print(f"Robot {robot_id} Path Deviation Metrics:")
                 print(f"L2 Norm: {l2_norm:.4f}")
                 print(f"Hausdorff distance: {hausdorff_dist:.4f}")
                 print("*" * 65)
@@ -695,24 +709,26 @@ def run_social_orca(config_file, num_robots, verbose=False):
         
         # After evaluating trajectories, compute Makespan Ratios for Social-ORCA
         ttg_list = []
-        goal_positions = []
+        goal_positions = {}
         # First, get goal positions from the trajectory files (last nominal position)
-        for i, traj_file in enumerate(trajectory_files):
+        for traj_file in trajectory_files:
+            robot_id = traj_file.stem.split('_')[1]
             data = pd.read_csv(traj_file)
             goal_x, goal_y = data.iloc[-1, 2], data.iloc[-1, 3]
-            goal_positions.append((goal_x, goal_y))
+            goal_positions[robot_id] = (goal_x, goal_y)
         # Now, for each agent, find the first step where actual position is close to goal
         threshold = 0.05  # distance threshold to consider as 'reached goal'
-        for i, traj_file in enumerate(trajectory_files):
+        for traj_file in trajectory_files:
+            robot_id = traj_file.stem.split('_')[1]
             data = pd.read_csv(traj_file)
             actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
-            goal_x, goal_y = goal_positions[i]
+            goal_x, goal_y = goal_positions[robot_id]
             ttg = len(data)  # default: never reached
             for step, (x, y) in enumerate(zip(actual_x, actual_y), 1):
                 if np.linalg.norm([x - goal_x, y - goal_y]) < threshold:
                     ttg = step
                     break
-            ttg_list.append([i, ttg])
+            ttg_list.append([robot_id, ttg])
         # Save TTGs to CSV
         with open("ttg_orca.csv", mode="w", newline="") as file:
             writer = csv.writer(file)
@@ -977,7 +993,9 @@ def run_social_orca(config_file, num_robots, verbose=False):
             )
             
     except Exception as e:
+        import traceback
         print(f"Error processing trajectories: {e}")
+        print(traceback.format_exc())
         return
 
 def run_social_impc_dr(env_type='doorway', verbose=False):

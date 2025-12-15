@@ -278,7 +278,6 @@ def calculate_oscillation_statistics(velocity, acceleration, heading, dt=0.1, we
         'heading_osc': heading_oscillation_index
     }
 
-    # --- Weighted sum (you can pre-normalize by scenario later)
     osc_score = (
         weights['v_zcr'] * components['v_zcr'] +
         weights['jerk_energy'] * components['jerk_energy'] +
@@ -666,27 +665,23 @@ def create_standardized_plot(env_type, show_obstacles=True):
 
 
 def calculate_fairness(agents_data, phi=None):
-	"""
-	Calculate fairness (global social welfare) for the agents.
-	
-	Parameters:
-	- agents_data: List of dicts, each with 'path_deviation' or other reward metric
-	- phi: List of weights for each agent (default: equal weights)
-	
-	Returns: 
-	- Global social welfare value as described in the paper
-	"""
 	num_agents = len(agents_data)
 	if num_agents == 0:
 		return 0.0
 	
 	if phi is None:
 		phi = [1.0] * num_agents  # Equal weights
+	
+	# Ensure phi has the same length as agents_data
+	if len(phi) < num_agents:
+		# Pad with 1.0 for missing priorities
+		phi = phi + [1.0] * (num_agents - len(phi))
+	elif len(phi) > num_agents:
+		phi = phi[:num_agents]
 
-	# Use negative path deviation as local reward (better paths = higher rewards)
-	R_local = [-agent.get('path_deviation', 0.0) for agent in agents_data]
+	R_local = [agent.get('path_deviation', 0.0) for agent in agents_data]
 
-	# Calculate global social welfare (sum of weighted rewards)
+	# Calculate global social welfare 
 	global_welfare = sum(phi[i] * R_local[i] for i in range(num_agents))
 
 	return global_welfare
