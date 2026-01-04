@@ -292,7 +292,6 @@ def get_standardized_cadrl_config(scenario_type):
         print("- X coordinates should be between -5 and 5")
     
     user_agents = []
-    fairness_priorities = []
     defaults = get_default_values(scenario_type)
     
     for i in range(num_agents):
@@ -304,23 +303,20 @@ def get_standardized_cadrl_config(scenario_type):
             start_y = get_float_input(f"Start Y position (default: {defaults['start_y']})", defaults['start_y'])
             goal_x = get_float_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'])
             goal_y = get_float_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'])
-            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
         elif i == 1 and 'agent2' in defaults:
             agent2_defaults = defaults['agent2']
             start_x = get_float_input(f"Start X position (default: {agent2_defaults['start_x']})", agent2_defaults['start_x'])
             start_y = get_float_input(f"Start Y position (default: {agent2_defaults['start_y']})", agent2_defaults['start_y'])
             goal_x = get_float_input(f"Goal X position (default: {agent2_defaults['goal_x']})", agent2_defaults['goal_x'])
             goal_y = get_float_input(f"Goal Y position (default: {agent2_defaults['goal_y']})", agent2_defaults['goal_y'])
-            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
         else:
             start_x = get_float_input("Start X position")
             start_y = get_float_input("Start Y position")
             goal_x = get_float_input("Goal X position")
             goal_y = get_float_input("Goal Y position")
-            fairness_priority = get_float_input(f"Fairness Priority (default: 1)", 1)
-            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y}), Priority={fairness_priority}")
+            print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
         
         # Use default values for radius, speed, and heading
         radius = defaults.get('radius', 0.5)
@@ -331,9 +327,8 @@ def get_standardized_cadrl_config(scenario_type):
             heading = defaults.get('heading', 0.0)
             
         user_agents.append((start_x, start_y, goal_x, goal_y, radius, pref_speed, heading))
-        fairness_priorities.append(fairness_priority)
     
-    return user_agents, fairness_priorities
+    return user_agents
 
 def get_agent_parameters(num_agents, scenario_type):
     """Get agent parameters from user"""
@@ -391,7 +386,7 @@ def get_agent_parameters(num_agents, scenario_type):
     
     return user_agents
 
-def run_scenario(scenario_type, user_agents, fairness_priorities=None, num_steps=150, verbose=True):
+def run_scenario(scenario_type, user_agents, num_steps=150, verbose=True):
     """Run the specified scenario with user-defined agents"""
     # Create single tf session for all experiments
     import tensorflow.compat.v1 as tf
@@ -660,7 +655,7 @@ def run_scenario(scenario_type, user_agents, fairness_priorities=None, num_steps
     if verbose:
         evaluation_results = evaluate_cadrl_performance(agent_tracking_data, scenario_type, time_step)
     else:
-        evaluation_results = display_clean_cadrl_metrics(agent_tracking_data, scenario_type, time_step, fairness_priorities)
+        evaluation_results = display_clean_cadrl_metrics(agent_tracking_data, scenario_type, time_step)
     
     # Save trajectory data for further analysis
     root_dir = Path(__file__).resolve().parents[5]
@@ -1092,7 +1087,7 @@ def save_cadrl_trajectory_data(agent_data, output_dir, time_step):
     
     return velocity_csv
 
-def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairness_priorities=None):
+def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1):
     """Display CADRL metrics in clean minimal format similar to IMPC-DR."""
     if not agent_data:
         return {}
@@ -1175,12 +1170,10 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
 
 
     print()
-    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation")
+    print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
     
     # Calculate fastest time for MR calculation
     fastest_time = min(completion_times) if completion_times else 1.0
-    
-    from src.utils import calculate_oscillation_statistics
     
     for i, agent in enumerate(agent_data):
         agent_id = agent['id']
@@ -1208,25 +1201,7 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
         else:
             hausdorff = 0.0
         
-        # Oscillation
-        oscillation_score = 0.0
-        if agent['velocities'] and len(agent['velocities']) >= 5:
-            try:
-                # Calculate velocity, acceleration, and heading
-                velocities = np.array(agent['velocities'])
-                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
-                acceleration = np.diff(velocity_mag) / time_step
-                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
-                
-                # Ensure we have enough data points
-                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
-                    osc_stats = calculate_oscillation_statistics(
-                        velocity_mag, acceleration, heading, dt=time_step)
-                    oscillation_score = osc_stats['oscillation_score']
-            except (ValueError, IndexError):
-                oscillation_score = 0.0
-        
-        print(f"Robot {agent_id}   {ttg:<3}  {mr:<6.3f} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}   {oscillation_score:<11.3f}")
+        print(f"Robot {agent_id}   {ttg:<3}  {mr:<6.3f} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
     
     return {
         'makespan': makespan,
