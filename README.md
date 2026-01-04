@@ -166,6 +166,7 @@ For Social-ORCA, you'll configure:
 - Number of robots (1-4)
 - Start and goal positions for each robot
 - Environment-specific constraints
+- Priority values for each robot
 
 ### Step 5: View Results
 The simulation generates:
@@ -177,11 +178,11 @@ The simulation generates:
 **Terminal Results:**
 ```
 SOCIAL-IMPC-DR RESULTS
-Environment: doorway  Success Rate: 100.0% (2/2)  Makespan: 15.00s  Flow Rate: 0.1667
+Environment: doorway  Success Rate: 100.0% (2/2)  Makespan: 15.00s  Flow Rate: 0.1667 Fairness: -28.4070
 
-Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff
-Robot 0   45   1.000  1.576   28.488    0.145   
-Robot 1   47   1.044  1.576   28.493    0.146  
+Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation
+Robot 0   45   1.000  1.576   28.488    0.145      2.062
+Robot 1   47   1.044  1.576   28.493    0.146      1.970
 ```
 
 ## Performance Metrics Explained
@@ -193,6 +194,7 @@ Robot 1   47   1.044  1.576   28.493    0.146
 | **Success Rate** | Percentage of agents reaching goals | Higher = better deadlock avoidance |
 | **Makespan** | Time for all agents to complete | Lower = more efficient |
 | **Flow Rate** | Agents per unit time through bottleneck | Higher = better throughput |
+| **Fairness** | How fair the interaction is given each agent's priority
 
 ### Per-Agent Metrics
 
@@ -203,6 +205,8 @@ Robot 1   47   1.044  1.576   28.493    0.146
 | **Avg ΔV** | Average velocity change | Σ\|v(t+1) - v(t)\| |
 | **Path Dev** | Path deviation from nominal | L2 norm of trajectory difference |
 | **Hausdorff** | Maximum deviation distance | max distance between trajectories |
+| **Oscillation** | How much each robot oscillations | combination of zero-crossing rate, jerk energy, speed ripple index, and heading oscillation index |
+
 
 
 ---
