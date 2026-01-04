@@ -1133,28 +1133,47 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
     
     success_rate = (successful_agents / len(agent_data)) * 100 if agent_data else 0
     
-    # Calculate fairness using path deviations
-    import sys
-    import os
-    # Add SMGLib root to path to import utils
-    smglib_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
-    if smglib_root not in sys.path:
-        sys.path.insert(0, smglib_root)
-    from src.utils import calculate_fairness
-    
-    agents_data_for_fairness = []
-    for agent in agent_data:
+    # Calculate fairness if possible
+    agents_for_fairness = []
+    for i, agent in enumerate(agent_data):
+        # Path deviation calculation
         if agent['positions']:
             avg_dev, max_dev, actual_length, nominal_length = calculate_path_deviation(
                 agent['positions'], agent['start_pos'], agent['goal_pos'])
-            agents_data_for_fairness.append({'path_deviation': avg_dev})
         else:
-            agents_data_for_fairness.append({'path_deviation': 0.0})
+            avg_dev = 0.0
+        
+        # Create agent data with path_deviation field
+        agents_for_fairness.append({
+            'id': agent['id'],
+            'path_deviation': avg_dev
+        })
+        
+        # Calculate fairness using the utility function
+        try:
+            # Try to import the utility function
+            sys.path.insert(0, str(Path(__file__).parents[5]))
+            from src.utils import calculate_fairness
+            fairness = calculate_fairness(agents_for_fairness)
+        except Exception as e:
+            print(f"Warning: Could not calculate fairness: {e}")
+            fairness = None
     
-    fairness = calculate_fairness(agents_data_for_fairness, fairness_priorities)
-    
+    # Display results
     print(f"\nSOCIAL-CADRL RESULTS")
-    print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}  Fairness: {fairness:.4f}")
+    print(f"Environment: {scenario_type}  Success Rate: {success_rate:.1f}% ({successful_agents}/{len(agent_data)})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
+    
+    # Add separator line for fairness and invasiveness metrics
+    print("*" * 65)
+    print("SOCIAL NAVIGATION METRICS:")
+    
+    # Add global fairness if available
+    if fairness is not None:
+        print(f"Fairness: {fairness:.4f}")
+    else:
+        print("Fairness: Not available")
+
+
     print()
     print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff  Oscillation")
     
@@ -1213,20 +1232,53 @@ def display_clean_cadrl_metrics(agent_data, scenario_type, time_step=0.1, fairne
         'makespan': makespan,
         'flow_rate': flow_rate,
         'success_rate': success_rate,
-        'completion_times': completion_times
+        'completion_times': completion_times,
+        'fairness': fairness
     }
 
 def run_standardized_cadrl(scenario_type, verbose=False):
-	"""Run CADRL with standardized interface similar to IMPC-DR."""
-	# Get configuration using standardized interface
-	user_agents, fairness_priorities = get_standardized_cadrl_config(scenario_type)
-	
-	print("\nStarting simulation...")
-	
-	# Run the scenario with default steps and verbose setting
-	evaluation_results = run_scenario(scenario_type, user_agents, fairness_priorities, num_steps=150, verbose=verbose)
-	
-	return evaluation_results
+    """Run CADRL with standardized interface similar to IMPC-DR."""
+    # Get configuration using standardized interface
+    user_agents = get_standardized_cadrl_config(scenario_type)
+    
+    print("\nStarting simulation...")
+    
+    # Run the scenario with default steps and verbose setting
+    evaluation_results = run_scenario(scenario_type, user_agents, num_steps=150, verbose=verbose)
+    
+    try:
+        # Try to access agent trajectory data from evaluation_results if available
+        agent_data = getattr(evaluation_results, 'agent_tracking_data', [])
+        
+        # Create agents_data structure for fairness calculation
+        agents_for_fairness = []
+        if agent_data:
+            for agent in agent_data:
+                # Path deviation calculation
+                if agent.get('positions'):
+                    avg_dev, max_dev, actual_length, nominal_length = calculate_path_deviation(
+                        agent['positions'], agent['start_pos'], agent['goal_pos'])
+                else:
+                    avg_dev = 0.0
+                
+                # Create agent data with path_deviation field
+                agents_for_fairness.append({
+                    'id': agent.get('id', 0),
+                    'path_deviation': avg_dev
+                })
+        
+        # Calculate fairness using the utility function
+        sys.path.insert(0, str(Path(__file__).parents[5]))
+        from src.utils import calculate_fairness
+        fairness = calculate_fairness(agents_for_fairness)
+        
+        # Add to evaluation_results
+        evaluation_results['fairness'] = fairness
+        
+    except Exception as e:
+        print(f"Warning: Could not calculate fairness: {e}")
+    
+    return evaluation_results
 
 def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
     """Evaluate CADRL performance with comprehensive metrics for moving robots only."""
@@ -1234,11 +1286,48 @@ def evaluate_cadrl_performance(agent_data, scenario_type, time_step=0.1):
     print("CADRL PERFORMANCE EVALUATION (MOVING ROBOTS ONLY)")
     print("="*80)
     
+    # Calculate fairness
+    fairness = None
+    
+    # Try to calculate fairness using the utility function
+    try:
+        # Create agents_data structure for fairness calculation
+        agents_for_fairness = []
+        for agent in agent_data:
+            # Path deviation calculation
+            if agent['positions']:
+                avg_dev, max_dev, actual_length, nominal_length = calculate_path_deviation(
+                    agent['positions'], agent['start_pos'], agent['goal_pos'])
+            else:
+                avg_dev = 0.0
+            
+            # Create agent data with path_deviation field
+            agents_for_fairness.append({
+                'id': agent['id'],
+                'path_deviation': avg_dev
+            })
+        
+        # Import the utility function
+        sys.path.insert(0, str(Path(__file__).parents[5]))
+        from src.utils import calculate_fairness
+        fairness = calculate_fairness(agents_for_fairness)
+    except Exception as e:
+        print(f"Warning: Could not calculate fairness: {e}")
+    
     if not agent_data:
         print("No moving agent data available for evaluation.")
         return
     
     print(f"Evaluating {len(agent_data)} moving robots")
+
+    # Display fairness metrics
+    print("*" * 65)
+    print("Social Navigation Metrics:")
+    if fairness is not None:
+        print(f"Fairness: {fairness:.4f}")
+    else:
+        print("Fairness: Could not calculate")
+    print("*" * 65)
     
     total_avg_deviation = 0.0
     total_max_deviation = 0.0
