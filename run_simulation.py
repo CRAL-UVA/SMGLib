@@ -60,11 +60,6 @@ def parse_orca_log(log_file):
     # Then process the log data
     for agent_log in log_section.findall('agent'):
         agent_id = int(agent_log.get('id'))
-        
-        # Only process agents that are defined in the config (skip extra agents)
-        if agent_id not in agent_defs:
-            continue
-        
         agent_def = agent_defs[agent_id]
         
         positions = []
@@ -114,12 +109,6 @@ def generate_orca_csvs(log_file, output_dir):
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Clean up old trajectory files from previous runs
-    for old_file in output_dir.glob("robot_*_trajectory.csv"):
-        old_file.unlink()
-    for old_file in output_dir.glob("velocities.csv"):
-        old_file.unlink()
-    
     # Create velocity CSV file
     velocity_csv = output_dir / "velocities.csv"
     with open(velocity_csv, 'w', newline='') as csvfile:
@@ -167,21 +156,18 @@ def generate_orca_csvs(log_file, output_dir):
 
 def evaluate_velocities(velocity_csv, verbose=True):
     """Evaluate the velocities using the evaluate module."""
-    from src.utils import calculate_oscillation_statistics
-    
     # Read the velocity CSV
     data = pd.read_csv(velocity_csv)
     
     # Process each robot's velocities
     robot_ids = []
     velocity_metrics = {}
-    oscillation_metrics = {}
     for col in data.columns:
         if col.endswith('_vx'):
             robot_id = col.split('_')[1]
             robot_ids.append(robot_id)
     
-    # Calculate average delta velocity and oscillation for each robot
+    # Calculate average delta velocity for each robot
     for robot_id in robot_ids:
         vx_col = f'robot_{robot_id}_vx'
         vy_col = f'robot_{robot_id}_vy'
@@ -196,38 +182,13 @@ def evaluate_velocities(velocity_csv, verbose=True):
         
         velocity_metrics[robot_id] = sum_abs_diffs
         
-        # Calculate oscillation
-        oscillation_score = 0.0
-        velocities = data[[vx_col, vy_col]].values
-        if len(velocities) >= 5:
-            try:
-                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
-                acceleration = np.diff(velocity_mag) / 0.1  # assuming dt=0.1
-                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
-                
-                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
-                    osc_stats = calculate_oscillation_statistics(
-                        velocity_mag, acceleration, heading, dt=0.1)
-                    oscillation_score = osc_stats['oscillation_score']
-                    if verbose:
-                        print(f"Robot {robot_id} Oscillation Components:")
-                        print(f"  V-ZCR: {osc_stats['velocity_zero_cross_rate']:.4f}")
-                        print(f"  Jerk Energy: {osc_stats['jerk_energy']:.4f}")
-                        print(f"  Speed Ripple: {osc_stats['speed_ripple_index']:.4f}")
-                        print(f"  Heading Osc: {osc_stats['heading_oscillation_index']:.4f}")
-                        print(f"  Total Score: {oscillation_score:.4f}")
-            except (ValueError, IndexError):
-                oscillation_score = 0.0
-        
-        oscillation_metrics[robot_id] = oscillation_score
-        
         if verbose:
             # Print the average delta velocity
             print("*" * 65)
             print(f"Robot {robot_id} Avg delta velocity: {sum_abs_diffs:.4f}")
             print("*" * 65)
     
-    return velocity_metrics, oscillation_metrics
+    return velocity_metrics
 
 def get_num_robots_from_config(config_file):
     """Extract number of robots from config file."""
@@ -235,21 +196,6 @@ def get_num_robots_from_config(config_file):
     root = tree.getroot()
     agents = root.findall('.//agent')
     return len(agents)
-
-def get_priorities_from_config(config_file):
-    """Extract fairness priorities from config file."""
-    try:
-        tree = ET.parse(config_file)
-        root = tree.getroot()
-        agents = root.findall('.//agent')
-        priorities = []
-        for agent in agents:
-            priority = agent.get('priority', '1.0')
-            priorities.append(float(priority))
-        return priorities
-    except:
-        # If we can't extract priorities, return None (will use default equal weights)
-        return None
 
 def generate_animation(agents_data, output_dir, map_size=(64, 64), config_file=None, num_robots=None):
     """Generate an animation of robot movements."""
@@ -471,16 +417,13 @@ def run_social_orca_standardized(env_type, verbose=False):
         goal_x = get_input(f"Goal X position (default: {defaults['goal_x']})", defaults['goal_x'], float)
         goal_y = get_input(f"Goal Y position (default: {defaults['goal_y']})", defaults['goal_y'], float)
         
-        # Get fairness weight 
-        fairness_priority = get_input(f"Fairness Priority (default: 1)", 1, float)
-
         robot_positions.append({
             'start_x': start_x,
             'start_y': start_y,
             'goal_x': goal_x,
-            'goal_y': goal_y,
-            'priority': fairness_priority
+            'goal_y': goal_y
         })
+        
         print(f"Agent {i+1} configured: Start=({start_x}, {start_y}), Goal=({goal_x}, {goal_y})")
     
     # Generate configuration file with user input
@@ -679,12 +622,9 @@ def run_social_orca(config_file, num_robots, verbose=False):
         trajectory_files = list(trajectory_dir.glob("robot_*_trajectory.csv"))
         
         trajectory_metrics = {}
-        for traj_file in trajectory_files:
-            # Extract robot ID from filename (e.g., "robot_0_trajectory.csv" -> "0")
-            robot_id = traj_file.stem.split('_')[1]
-            
+        for i, traj_file in enumerate(trajectory_files):
             if verbose:
-                print(f"\nEvaluating Robot {robot_id} trajectory:")
+                print(f"\nEvaluating Robot {i} trajectory:")
             data = pd.read_csv(traj_file)
             
             # Extract coordinates
@@ -700,42 +640,40 @@ def run_social_orca(config_file, num_robots, verbose=False):
             nominal_trajectory = np.column_stack((nominal_x, nominal_y))
             hausdorff_dist = directed_hausdorff(actual_trajectory, nominal_trajectory)[0]
             
-            trajectory_metrics[robot_id] = {
+            trajectory_metrics[str(i)] = {
                 'l2_norm': l2_norm,
                 'hausdorff_dist': hausdorff_dist
             }
             
             if verbose:
                 print("*" * 65)
-                print(f"Robot {robot_id} Path Deviation Metrics:")
+                print(f"Robot {i} Path Deviation Metrics:")
                 print(f"L2 Norm: {l2_norm:.4f}")
                 print(f"Hausdorff distance: {hausdorff_dist:.4f}")
                 print("*" * 65)
         
-        velocity_metrics, oscillation_metrics = evaluate_velocities(velocity_csv, verbose)
+        velocity_metrics = evaluate_velocities(velocity_csv, verbose)
         
         # After evaluating trajectories, compute Makespan Ratios for Social-ORCA
         ttg_list = []
-        goal_positions = {}
+        goal_positions = []
         # First, get goal positions from the trajectory files (last nominal position)
-        for traj_file in trajectory_files:
-            robot_id = traj_file.stem.split('_')[1]
+        for i, traj_file in enumerate(trajectory_files):
             data = pd.read_csv(traj_file)
             goal_x, goal_y = data.iloc[-1, 2], data.iloc[-1, 3]
-            goal_positions[robot_id] = (goal_x, goal_y)
+            goal_positions.append((goal_x, goal_y))
         # Now, for each agent, find the first step where actual position is close to goal
         threshold = 0.05  # distance threshold to consider as 'reached goal'
-        for traj_file in trajectory_files:
-            robot_id = traj_file.stem.split('_')[1]
+        for i, traj_file in enumerate(trajectory_files):
             data = pd.read_csv(traj_file)
             actual_x, actual_y = data.iloc[:, 0], data.iloc[:, 1]
-            goal_x, goal_y = goal_positions[robot_id]
+            goal_x, goal_y = goal_positions[i]
             ttg = len(data)  # default: never reached
             for step, (x, y) in enumerate(zip(actual_x, actual_y), 1):
                 if np.linalg.norm([x - goal_x, y - goal_y]) < threshold:
                     ttg = step
                     break
-            ttg_list.append([robot_id, ttg])
+            ttg_list.append([i, ttg])
         # Save TTGs to CSV
         with open("ttg_orca.csv", mode="w", newline="") as file:
             writer = csv.writer(file)
@@ -983,13 +921,9 @@ def run_social_orca(config_file, num_robots, verbose=False):
             else:
                 environment = 'unknown'
             
-            # Extract fairness priorities from config
-            fairness_priorities = get_priorities_from_config(config_path)
-            
             display_clean_orca_metrics(
                 trajectory_metrics,
                 velocity_metrics,
-                oscillation_metrics,
                 ttg_metrics,
                 flow_rate,
                 makespan,
@@ -999,9 +933,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
             )
             
     except Exception as e:
-        import traceback
         print(f"Error processing trajectories: {e}")
-        print(traceback.format_exc())
         return
 
 def run_social_impc_dr(env_type='doorway', verbose=False):
@@ -1098,15 +1030,13 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                             # Use the user-selected verbose mode
                             
                             trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
-                            velocity_metrics, oscillation_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                            velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                             
                             # Display clean metrics if not in verbose mode
-                            # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                             if not verbose and trajectory_results:
                                 display_clean_impc_metrics(
                                     trajectory_results['trajectory_metrics'],
                                     velocity_metrics,
-                                    oscillation_metrics,
                                     trajectory_results['ttg_metrics'],
                                     trajectory_results['flow_rate'],
                                     trajectory_results['makespan'],
@@ -1144,15 +1074,13 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                         
                         # Evaluate trajectories and velocities
                         trajectory_results = evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=verbose)
-                        velocity_metrics, oscillation_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
+                        velocity_metrics = evaluate_impc_velocities(impc_dir, verbose=verbose)
                         
                         # Display clean metrics if not in verbose mode
-                        # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                         if not verbose and trajectory_results:
                             display_clean_impc_metrics(
                                 trajectory_results['trajectory_metrics'],
                                 velocity_metrics,
-                                oscillation_metrics,
                                 trajectory_results['ttg_metrics'],
                                 trajectory_results['flow_rate'],
                                 trajectory_results['makespan'],
@@ -1244,8 +1172,6 @@ def setup_impc_environment(impc_dir):
 
 def evaluate_impc_velocities(impc_dir, verbose=True):
     """Evaluate IMPC-DR velocities and calculate average delta velocity."""
-    from src.utils import calculate_oscillation_statistics
-    
     if verbose:
         print("\nEvaluating Social-IMPC-DR velocities:")
     
@@ -1255,10 +1181,9 @@ def evaluate_impc_velocities(impc_dir, verbose=True):
     if not velocity_files:
         if verbose:
             print("No velocity CSV files found")
-        return {}, {}
+        return {}
     
     velocity_metrics = {}
-    oscillation_metrics = {}
     for velocity_file in velocity_files:
         robot_id = velocity_file.stem.split('_')[-1]
         data = pd.read_csv(velocity_file)
@@ -1273,31 +1198,13 @@ def evaluate_impc_velocities(impc_dir, verbose=True):
         
         velocity_metrics[robot_id] = sum_abs_diffs
         
-        # Calculate oscillation
-        oscillation_score = 0.0
-        velocities = data[['vx', 'vy']].values
-        if len(velocities) >= 5:
-            try:
-                velocity_mag = np.sqrt(velocities[:, 0]**2 + velocities[:, 1]**2)
-                acceleration = np.diff(velocity_mag) / 0.1  # assuming dt=0.1
-                heading = np.arctan2(velocities[:, 1], velocities[:, 0])
-                
-                if len(velocity_mag) >= 5 and len(acceleration) >= 4 and len(heading) >= 5:
-                    osc_stats = calculate_oscillation_statistics(
-                        velocity_mag, acceleration, heading, dt=0.1)
-                    oscillation_score = osc_stats['oscillation_score']
-            except (ValueError, IndexError):
-                oscillation_score = 0.0
-        
-        oscillation_metrics[robot_id] = oscillation_score
-        
         if verbose:
             # Print the average delta velocity
             print("*" * 65)
             print(f"Avg delta velocity for robot {robot_id}: {sum_abs_diffs:.4f}")
             print("*" * 65)
     
-    return velocity_metrics, oscillation_metrics
+    return velocity_metrics
 
 def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose=True):
     """Evaluate IMPC-DR trajectories and calculate metrics."""
@@ -1568,16 +1475,12 @@ def generate_config(env_type, num_robots, robot_positions):
         start_x_grid, start_y_grid = world_to_grid(robot_positions[i]['start_x'], robot_positions[i]['start_y'])
         goal_x_grid, goal_y_grid = world_to_grid(robot_positions[i]['goal_x'], robot_positions[i]['goal_y'])
         
-        # Get priority if available, default to 1.0
-        priority = robot_positions[i].get('priority', 1.0)
-        
         agent = ET.SubElement(agents, 'agent', {
             'id': str(i),
             'start.xr': str(start_x_grid),
             'start.yr': str(start_y_grid),
             'goal.xr': str(goal_x_grid),
-            'goal.yr': str(goal_y_grid),
-            'priority': str(priority)
+            'goal.yr': str(goal_y_grid)
         })
     
     # Add map section with 64x64 grid (matching original ORCA configs)

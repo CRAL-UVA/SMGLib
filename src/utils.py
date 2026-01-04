@@ -243,61 +243,6 @@ def create_animation(agents_data: List[Dict], output_dir: Path,
 	plt.close(fig)
 	return saved_path
 
-def calculate_oscillation_statistics(velocity, acceleration, heading, dt=0.1, weights={'v_zcr': 0.25,'jerk_energy': 0.25,'speed_ripple': 0.25,'heading_osc': 0.25}):
-    n = len(velocity)
-    if n < 5:
-        raise ValueError("Input arrays too short for oscillation metrics")
-
-    # Velocity Zero-Crossing Rate (ZCR) - normalized by a typical threshold
-    acc_sign = np.sign(acceleration)
-    zc = np.sum(np.abs(np.diff(acc_sign)) > 0)
-    velocity_zero_cross_rate = zc / (n * dt)  # crossings per second
-    # Normalize: typical smooth motion has 0-2 crossings/s, oscillatory motion has >5
-    v_zcr_normalized = min(velocity_zero_cross_rate / 10.0, 1.0)  # scale to 0-1
-
-    # Jerk Energy - use RMS jerk, normalized
-    jerk = np.diff(acceleration) / dt
-    jerk_rms = np.sqrt(np.mean(jerk ** 2))  # RMS jerk
-    # Normalize: typical smooth motion has jerk < 1, oscillatory > 3
-    jerk_normalized = min(jerk_rms / 5.0, 1.0)  # scale to 0-1
-
-    # Speed Ripple Index (SRI) - already normalized (coefficient of variation)
-    mean_v = np.mean(velocity)
-    speed_ripple_index = np.std(velocity) / (mean_v + 1e-6)
-    # Cap at 1.0 for very oscillatory motion
-    sri_normalized = min(speed_ripple_index, 1.0)
-
-    # Heading Oscillation Index (HOI) - normalize by typical values
-    dtheta = np.diff(heading)
-    dtheta = (dtheta + np.pi) % (2 * np.pi) - np.pi  # wrap to [-pi, pi]
-    ddtheta = np.diff(dtheta)
-    heading_oscillation = np.mean(np.abs(ddtheta)) / dt  # rad/s^2
-    # Normalize: smooth motion < 0.5 rad/s^2, oscillatory > 2 rad/s^2
-    hoi_normalized = min(heading_oscillation / 2.0, 1.0)  # scale to 0-1
-
-    components = {
-        'v_zcr': velocity_zero_cross_rate,
-        'jerk_energy': jerk_rms,
-        'speed_ripple': speed_ripple_index,
-        'heading_osc': heading_oscillation
-    }
-
-    # Weighted sum of normalized components (result between 0-1)
-    osc_score = (
-        weights['v_zcr'] * v_zcr_normalized +
-        weights['jerk_energy'] * jerk_normalized +
-        weights['speed_ripple'] * sri_normalized +
-        weights['heading_osc'] * hoi_normalized
-    )
-
-    return {
-        'velocity_zero_cross_rate': float(velocity_zero_cross_rate),
-        'jerk_energy': float(jerk_rms),
-        'speed_ripple_index': float(speed_ripple_index),
-        'heading_oscillation_index': float(heading_oscillation),
-        'oscillation_score': float(osc_score)
-    }
-
 
 def calculate_makespan_ratios(completion_times: List[float]) -> List[float]:
 	"""Calculate makespan ratios for agents."""
@@ -665,28 +610,5 @@ def get_standardized_positions(env_type, num_agents=2):
     return StandardizedEnvironment.get_standard_agent_positions(env_type, num_agents)
 
 def create_standardized_plot(env_type, show_obstacles=True):
-	"""Create a standardized plot for the specified environment type."""
-	return StandardizedEnvironment.create_standard_plot(env_type, show_obstacles)
-
-
-def calculate_fairness(agents_data, phi=None):
-	num_agents = len(agents_data)
-	if num_agents == 0:
-		return 0.0
-	
-	if phi is None:
-		phi = [1.0] * num_agents  # Equal weights
-	
-	# Ensure phi has the same length as agents_data
-	if len(phi) < num_agents:
-		# Pad with 1.0 for missing priorities
-		phi = phi + [1.0] * (num_agents - len(phi))
-	elif len(phi) > num_agents:
-		phi = phi[:num_agents]
-
-	R_local = [agent.get('path_deviation', 0.0) for agent in agents_data]
-
-	# Calculate global social welfare 
-	global_welfare = sum(phi[i] * R_local[i] for i in range(num_agents))
-
-	return global_welfare
+    """Create a standardized plot for the specified environment type."""
+    return StandardizedEnvironment.create_standard_plot(env_type, show_obstacles) 
