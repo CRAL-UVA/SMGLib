@@ -14,29 +14,10 @@ import matplotlib.patches as patches
 import json
 import venv
 import shutil
-from src.utils import calculate_fairness, calculate_invasiveness_score
-
-# Make sure numpy is available
-try:
-    import numpy as np
-except ImportError:
-    print("Warning: NumPy is not installed. Some functionality may be limited.")
-    # Define a simple fallback if numpy isn't available
-    class NumpyFallback:
-        def array(self, x):
-            return x
-        def linalg(self):
-            class Linalg:
-                def norm(self, x, axis=None):
-                    if axis is None:
-                        return sum(i**2 for i in x)**0.5
-                    return [sum(row[i]**2 for i in range(len(row)))**0.5 for row in x]
-            return Linalg()
-    np = NumpyFallback()
 
 # Import standardized environment configuration
 sys.path.append(str(Path(__file__).parent / 'src'))
-from src.utils import StandardizedEnvironment
+from utils import StandardizedEnvironment
 
 def get_venv_python():
     venv_dir = Path(__file__).parent / "venv"
@@ -982,40 +963,6 @@ def run_social_orca(config_file, num_robots, verbose=False):
                 print(f"Make-span: {makespan:.2f}s, Gap width: {gap_width}")
                 print("*" * 65)
         
-        # Create a list of agents with their metrics for the Fairness Calculation:ulation
-        agents_data = []
-        for robot_id in sorted(trajectory_metrics.keys()):
-            agent_data = {
-                'id': robot_id,
-                'path_deviation': trajectory_metrics[robot_id].get('l2_norm', 0.0),
-            
-            }
-            agents_data.append(agent_data)
-        
-        fairness = None
-        
-        # Calculate fairness (social welfare)
-        try:
-            # Make sure agents_data is properly structured for Fairness Calculation:ulation
-            if agents_data and all('path_deviation' in agent for agent in agents_data):
-                fairness = calculate_fairness(agents_data)
-            else:
-                fairness = None
-                if verbose:
-                    print("Warning: Could not calculate fairness - missing path_deviation data")
-        except Exception as e:
-            fairness = None
-            if verbose:
-                print(f"Warning: Error calculating fairness: {e}")
-
-        if verbose:
-            print("Fairness Calculation:")
-            # Add fairness metrics to verbose output
-            if fairness is not None:
-                print(f"Fairness: {fairness:.4f}")
-            else:
-                print("Fairness: Not available")
-
         # Calculate success rate
         if agent_completion_data:
             successful_count = len([data for data in agent_completion_data if data['reached_goal']])
@@ -1048,8 +995,7 @@ def run_social_orca(config_file, num_robots, verbose=False):
                 makespan,
                 success_rate,
                 environment,
-                num_robots,
-                fairness
+                num_robots
             )
             
     except Exception as e:
@@ -1157,24 +1103,6 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                             # Display clean metrics if not in verbose mode
                             # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                             if not verbose and trajectory_results:
-                                # Calculate fairness for IMPC-DR
-                                # Create agents_data list from trajectory metrics
-                                agents_data = []
-                                for robot_id in sorted(trajectory_results['trajectory_metrics'].keys()):
-                                    agent_data = {
-                                        'id': robot_id,
-                                        'path_deviation': trajectory_results['trajectory_metrics'][robot_id].get('l2_norm', 0.0)
-                                    }
-                                    agents_data.append(agent_data)
-                                
-                                # Import fairness calculation function
-                                # Import utils functions
-                                from src.utils import calculate_fairness
-                                import numpy as np
-                                
-                                # Calculate fairness (social welfare)
-                                fairness = calculate_fairness(agents_data)
-                                
                                 display_clean_impc_metrics(
                                     trajectory_results['trajectory_metrics'],
                                     velocity_metrics,
@@ -1184,8 +1112,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                                     trajectory_results['makespan'],
                                     trajectory_results['success_rate'],
                                     trajectory_results['environment'],
-                                    trajectory_results['num_agents'],
-                                    fairness
+                                    trajectory_results['num_agents']
                                 )
                         else:
                             print("⚠ No trajectory files found")
@@ -1222,21 +1149,6 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                         # Display clean metrics if not in verbose mode
                         # Note: IMPC-DR uses default equal fairness priorities (all 1.0)
                         if not verbose and trajectory_results:
-                            # Calculate fairness from trajectory metrics
-                            agents_for_fairness = []
-                            for robot_id in sorted(trajectory_results['trajectory_metrics'].keys()):
-                                agents_for_fairness.append({
-                                    'id': robot_id,
-                                    'path_deviation': trajectory_results['trajectory_metrics'][robot_id].get('l2_norm', 0.0)
-                                })
-                            
-                            # Calculate fairness
-                            try:
-                                fairness = calculate_fairness(agents_for_fairness)
-                            except Exception:
-                                fairness = None
-                            
-                            # Display metrics with fairness
                             display_clean_impc_metrics(
                                 trajectory_results['trajectory_metrics'],
                                 velocity_metrics,
@@ -1246,8 +1158,7 @@ def run_social_impc_dr(env_type='doorway', verbose=False):
                                 trajectory_results['makespan'],
                                 trajectory_results['success_rate'],
                                 trajectory_results['environment'],
-                                trajectory_results['num_agents'],
-                                fairness
+                                trajectory_results['num_agents']
                             )
                     else:
                         print("⚠ No trajectory files found")
@@ -1472,27 +1383,7 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose
             effective_agents = num_agents  # Use all agents but note the limitation
         
         flow_rate = effective_agents / (gap_width * make_span)
-        
         if verbose:
-            # Create agents data for fairness calculation
-            agents_for_fairness = []
-            for robot_id in sorted(trajectory_metrics.keys()):
-                agents_for_fairness.append({
-                    'id': robot_id,
-                    'path_deviation': trajectory_metrics[robot_id].get('l2_norm', 0.0)
-                })
-
-            # Initialize fairness
-            fairness = None
-            
-            # Calculate fairness
-            try:
-                fairness = calculate_fairness(agents_for_fairness)
-            except Exception as e:
-                print(f"Warning: Could not calculate fairness: {e}")
-                fairness = None
-            
-            # Print flow rate metrics
             print("*" * 65)
             print(f"Social-IMPC-DR Flow Rate Calculation:")
             print(f"Scenario: {flow_rate_type}")
@@ -1502,14 +1393,6 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose
             print(f"Make-span (T): {make_span:.2f}s")
             print(f"Completion step: {actual_completion_steps}/{max_steps}")
             print(f"Flow Rate: {flow_rate:.4f} agents/(unit·s)")
-            print("*" * 65)
-
-            # Print fairness metrics
-            print("Fairness Calculation:")
-            if fairness is not None:
-                print(f"Fairness: {fairness:.4f}")
-            else:
-                print("Fairness: Not available")
             print("*" * 65)
     else:
         flow_rate = 0.0
@@ -1598,7 +1481,7 @@ def evaluate_impc_trajectories(impc_dir, env_type, path_deviation_files, verbose
         'max_steps': max_steps
     }
 
-def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness=None):
+def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
     """Display IMPC DR metrics in clean minimal format."""
     print("\nSOCIAL-IMPC-DR RESULTS")
     
@@ -1606,17 +1489,6 @@ def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
     successful_count = sum(1 for robot_id in ttg_metrics if ttg_metrics[robot_id].get('reached_goal', False))
     
     print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
-
-    print("Fairness Calculation:")
-    
-    # Add global fairness if available
-    if fairness is not None:
-        print(f"Fairness: {fairness:.4f}")
-    else:
-        print("Fairness: Not available")
-
-    print("*" * 65)
-        
     print()
     print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
     
@@ -1636,7 +1508,7 @@ def display_clean_impc_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
         
         print(f"Robot {robot_id}   {ttg:<3}  {mr_str:<6} {avg_delta_v:<6.3f}  {path_dev:<8.3f}  {hausdorff:<8.3f}")
 
-def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents, fairness=None):
+def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics, flow_rate, makespan, success_rate, environment, num_agents):
     """Display ORCA metrics in clean minimal format."""
     print("\nSOCIAL-ORCA RESULTS")
     
@@ -1644,15 +1516,6 @@ def display_clean_orca_metrics(trajectory_metrics, velocity_metrics, ttg_metrics
     successful_count = sum(1 for ttg in ttg_metrics.values() if ttg < float('inf'))
     
     print(f"Environment: {environment}  Success Rate: {success_rate:.1f}% ({successful_count}/{num_agents})  Makespan: {makespan:.2f}s  Flow Rate: {flow_rate:.4f}")
-    
-    print("*" * 65)
-    print("Fairness Calculation:")
-    
-    # Add global fairness if available
-    if fairness is not None:
-        print(f"Social Welfare (Fairness): {fairness:.4f}")
-    else:
-        print("Social Welfare (Fairness): Not available")
     print()
     print("Agent     TTG  MR     Avg ΔV  Path Dev  Hausdorff")
     
