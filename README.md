@@ -10,6 +10,7 @@
 [📄 Paper](https://arxiv.org/pdf/2508.13459)
 
 </div>
+
 ---
 
 <div style="display: flex; justify-content: center; gap: 12px;">
