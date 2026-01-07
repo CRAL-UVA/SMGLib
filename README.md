@@ -22,7 +22,7 @@
 ![GitHub Repo stars](https://img.shields.io/github/stars/CRAL-UVA/SMGLib)
 ![GitHub forks](https://img.shields.io/github/forks/CRAL-UVA/SMGLib)
 
-## Overview
+<!-- ## Overview
 
 **SMGLib** is a comprehensive Python library for multi-agent social navigation research and simulation. It provides a unified framework for testing, comparing, and analyzing different collision avoidance algorithms in complex social scenarios like doorways, hallways, and intersections.
 
@@ -38,8 +38,8 @@
 
 ⚡ **Easy-to-Use Interface**: Simple command-line interface with interactive configuration
 
-## Research Foundation
-
+## Research Foundation -->
+<!-- 
 The algorithms implemented in SMGLib are based on the following peer-reviewed publications:
 
 ### Social-ORCA Implementation
@@ -56,7 +56,7 @@ The algorithms implemented in SMGLib are based on the following peer-reviewed pu
 * **M. Everett, Y. Chen, and J. P. How**, "Motion Planning Among Dynamic, Decision-Making Agents with Deep Reinforcement Learning," *IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)*, 2018. [[pdf](https://arxiv.org/pdf/1703.08862.pdf)]
 
 ### Additional Methods
-* **Davis, Bobby, Ioannis Karamouzas, and Stephen J. Guy**, "NH-TTC: A gradient-based framework for generalized anticipatory collision avoidance," *arXiv preprint arXiv:1907.05945*, 2019. [[pdf](http://motion.cs.umn.edu/r/NH-TTC/)]
+* **Davis, Bobby, Ioannis Karamouzas, and Stephen J. Guy**, "NH-TTC: A gradient-based framework for generalized anticipatory collision avoidance," *arXiv preprint arXiv:1907.05945*, 2019. [[pdf](http://motion.cs.umn.edu/r/NH-TTC/)] -->
 
 ## Quick Start
 
@@ -98,45 +98,7 @@ Robot 0   45   1.000  1.576   28.488    0.145
 Robot 1   47   1.044  1.576   28.493    0.146  
 ```
 
-## Available Methods
-
-### 1. Social-ORCA
-**Optimal Reciprocal Collision Avoidance** - A velocity-based collision avoidance method that guarantees collision-free navigation in multi-agent environments.
-
-*Features:*
-- Real-time collision avoidance
-- Distributed decision making
-- Minimal computational overhead
-
-
-### 2. Social-IMPC-DR
-**Iterative Model Predictive Control with Deadlock Resolution** - Advanced predictive control method with explicit deadlock detection and resolution mechanisms.
-
-*Features:*
-- Predictive trajectory planning
-- Deadlock detection and resolution
-- Optimization-based approach
-
-
-### 3. Social-CADRL
-**Collision Avoidance with Deep Reinforcement Learning** - Deep learning-based approach trained on diverse social navigation scenarios.
-
-*Features:*
-- Learning-based navigation policies
-- Adaptable to novel scenarios
-- Human-like behavior patterns
-
-
-## Supported Environments
-
-### Doorway Scenario
-Agents navigate through a narrow doorway, requiring coordination to avoid deadlocks.
-
-### Hallway Scenario
-Bidirectional traffic flow in a constrained hallway environment.
-
-### Intersection Scenario
-Complex multi-directional navigation through intersection points.
+--- 
 
 ## Walkthrough: Running a Complete Simulation
 
@@ -197,6 +159,8 @@ Robot 0   45   1.000  1.576   28.488    0.145
 Robot 1   47   1.044  1.576   28.493    0.146  
 ```
 
+---
+
 ## Performance Metrics Explained
 
 ### Primary Metrics
@@ -217,7 +181,32 @@ Robot 1   47   1.044  1.576   28.493    0.146
 | **Path Dev** | Path deviation from nominal | L2 norm of trajectory difference |
 | **Hausdorff** | Maximum deviation distance | max distance between trajectories |
 
+Please refer to the [report](https://arxiv.org/pdf/2508.13459) for further details on the metrics and algorithm details.
+
+## Available Methods
+
+1. ORCA: Optimal Reciprocal Collision Avoidance
+2. IMPC-DR - Deadlock Resolution and Recursive Feasibility in MPC-based Multi-robot Trajectory Generation
+3. CADRL - Collision Avoidance with Deep Reinforcement Learning
+
+## Supported Environments
+
+1. Doorway Scenario.
+2. Hallway Scenario
+3. Intersection Scenario.
+
 
 ---
 
-**SMGLib** - Advancing multi-agent navigation research through comprehensive simulation and analysis tools.
+Please cite the following work:
+
+```bibtex
+@article{chandra2025multi,
+  title   = {Multi-robot navigation in social mini-games: Definitions, taxonomy, and algorithms},
+  author  = {Chandra, Rohan and Singh, Shubham and Luo, Wenhao and Sycara, Katia},
+  journal = {arXiv preprint arXiv:2508.13459},
+  year    = {2025}
+}
+
+
+<!-- **SMGLib** - Advancing multi-agent navigation research through comprehensive simulation and analysis tools. -->
