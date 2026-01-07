@@ -1,7 +1,6 @@
 <div align="center">
 
 # Social Mini-Games Library
----
 
 **[Rohan Chandra](https://cral-uva.github.io/people/rohan_chandra/index.html)<sup>1</sup>, [Shubham Singh](https://shubhamsingh91.github.io/)<sup>2</sup>, [Wenhao Luo](https://www.cs.uic.edu/~wenhao/)<sup>3</sup>, [Katia Sycara](https://www.ri.cmu.edu/ri-faculty/katia-sycara/)<sup>4</sup>**
 
