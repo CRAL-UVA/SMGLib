@@ -1,13 +1,13 @@
 <div align="center">
 
-# A Survey of Multi-Robot Navigation in Social Mini-Games
+# Social Mini-Games Library
 ---
 
 **[Rohan Chandra](https://cral-uva.github.io/people/rohan_chandra/index.html)<sup>1</sup>, [Shubham Singh](https://shubhamsingh91.github.io/)<sup>2</sup>, [Wenhao Luo](https://www.cs.uic.edu/~wenhao/)<sup>3</sup>, [Katia Sycara](https://www.ri.cmu.edu/ri-faculty/katia-sycara/)<sup>4</sup>**
 
 <sup>1</sup> University of Virginia, <sup>2</sup> University of Texas at Austin, <sup>3</sup> University of Illinois Chicago, <sup>4</sup> Carnegie Mellon University  
 
-[📄 Paper](https://arxiv.org/pdf/2508.13459)
+[📄 A Survey of Multi-Robot Navigation in Social Mini-Games](https://arxiv.org/pdf/2508.13459)
 
 </div>
 
