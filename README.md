@@ -1,4 +1,4 @@
-# SMGLib: Social Multi-Agent Navigation Library
+# SMGLib: Social Mini-Games Library
 
 <div style="display: flex; justify-content: center; gap: 12px;">
   <img src="img/impc_doorway.gif" alt="IMPC Doorway" width="260" height="200"/>
