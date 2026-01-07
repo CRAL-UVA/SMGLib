@@ -8,12 +8,12 @@
 
 [📄 A Survey of Multi-Robot Navigation in Social Mini-Games](https://arxiv.org/pdf/2508.13459)
 
-</div>
-
 ![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
 ![Static Badge](https://img.shields.io/badge/Status-Complete-green)
 ![GitHub Repo stars](https://img.shields.io/github/stars/CRAL-UVA/SMGLib)
 ![GitHub forks](https://img.shields.io/github/forks/CRAL-UVA/SMGLib)
+
+</div>
 
 ---
 
