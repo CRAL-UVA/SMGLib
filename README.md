@@ -5,15 +5,13 @@
 
 **[Rohan Chandra](https://cral-uva.github.io/people/rohan_chandra/index.html)<sup>1</sup>, [Shubham Singh](https://shubhamsingh91.github.io/)<sup>2</sup>, [Wenhao Luo](https://www.cs.uic.edu/~wenhao/)<sup>3</sup>, [Katia Sycara](https://www.ri.cmu.edu/ri-faculty/katia-sycara/)<sup>4</sup>**
 
-<sup>1</sup> University of Virginia  
-<sup>2</sup> University of Texas at Austin  
-<sup>3</sup> University of Illinois Chicago  
-<sup>4</sup> Carnegie Mellon University  
+<sup>1</sup> University of Virginia, <sup>2</sup> University of Texas at Austin, <sup>3</sup> University of Illinois Chicago, <sup>4</sup> Carnegie Mellon University  
 
 [📄 Paper](https://arxiv.org/pdf/2508.13459)
 
 </div>
 ---
+
 <div style="display: flex; justify-content: center; gap: 12px;">
   <img src="img/impc_doorway.gif" alt="IMPC Doorway" width="260" height="200"/>
   <img src="img/impc_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
