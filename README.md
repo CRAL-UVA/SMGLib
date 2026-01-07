@@ -1,8 +1,11 @@
 # SMGLib: Social Multi-Agent Navigation Library
 
-<p align="center">
-  <img src="SMGLib.png" alt="SMGLib Logo" width="800" height="500"/>
-</p>
+<div style="display: flex; justify-content: center; gap: 12px;">
+  <img src="img/impc_doorway.gif" alt="IMPC Doorway" width="260" height="200"/>
+  <img src="img/impc_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
+  <img src="img/impc_intersection.gif" alt="IMPC Intersection" width="260" height="200"/>
+</div>
+
 
 ![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
 ![Static Badge](https://img.shields.io/badge/Status-Complete-green)
