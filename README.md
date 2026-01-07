@@ -207,6 +207,4 @@ Please cite the following work:
   journal = {arXiv preprint arXiv:2508.13459},
   year    = {2025}
 }
-
-
-<!-- **SMGLib** - Advancing multi-agent navigation research through comprehensive simulation and analysis tools. -->
+```
