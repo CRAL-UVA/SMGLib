@@ -10,6 +10,11 @@
 
 </div>
 
+![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
+![Static Badge](https://img.shields.io/badge/Status-Complete-green)
+![GitHub Repo stars](https://img.shields.io/github/stars/CRAL-UVA/SMGLib)
+![GitHub forks](https://img.shields.io/github/forks/CRAL-UVA/SMGLib)
+
 ---
 
 <div style="display: flex; justify-content: center; gap: 12px;">
@@ -27,12 +32,6 @@
   <img src="img/cadrl_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
   <img src="img/cadrl_intersection.gif" alt="IMPC Intersection" width="260" height="200"/>
 </div>
-
-
-![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
-![Static Badge](https://img.shields.io/badge/Status-Complete-green)
-![GitHub Repo stars](https://img.shields.io/github/stars/CRAL-UVA/SMGLib)
-![GitHub forks](https://img.shields.io/github/forks/CRAL-UVA/SMGLib)
 
 <!-- ## Overview
 
