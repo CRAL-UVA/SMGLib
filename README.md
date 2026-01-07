@@ -5,6 +5,16 @@
   <img src="img/impc_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
   <img src="img/impc_intersection.gif" alt="IMPC Intersection" width="260" height="200"/>
 </div>
+<div style="display: flex; justify-content: center; gap: 12px;">
+  <img src="img/orca_doorway.gif" alt="IMPC Doorway" width="260" height="200"/>
+  <img src="img/orca_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
+  <img src="img/orca_intersection.gif" alt="IMPC Intersection" width="260" height="200"/>
+</div>
+<div style="display: flex; justify-content: center; gap: 12px;">
+  <img src="img/cadrl_doorway.gif" alt="IMPC Doorway" width="260" height="200"/>
+  <img src="img/cadrl_hallway.gif" alt="IMPC Hallway" width="260" height="200"/>
+  <img src="img/cadrl_intersection.gif" alt="IMPC Intersection" width="260" height="200"/>
+</div>
 
 
 ![GitHub last commit (by committer)](https://img.shields.io/github/last-commit/CRAL-UVA/SMGLib)
